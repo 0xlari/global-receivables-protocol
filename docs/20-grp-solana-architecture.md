@@ -75,6 +75,7 @@ Suggested fields:
 - id / public nonce
 - requester
 - originator
+- payer_wallet
 - payer_commitment_hash
 - evidence_commitment
 - original_currency_code
@@ -227,11 +228,22 @@ Cannot:
 
 ### Payer
 
-In the MVP, payer confirmation remains initiated through a private off-chain link.
+The payer confirmation is initiated through a private link, but **the payer must connect the Solana wallet that will later make the repayment and sign the receivable commitment with that wallet**.
 
-The public chain stores only a commitment/proof reference. The payer does not need a persistent GRP account for the first hackathon version.
+The signature binds the payer wallet to, at minimum:
 
-A later version may allow payer wallet signatures directly.
+- the receivable public identifier;
+- the confirmed amount;
+- the due date;
+- the USDC mint / settlement asset;
+- the GRP program or domain separator;
+- an expiry / nonce to prevent replay.
+
+The payer wallet public key becomes part of the public receivable state. Full payer identity remains private off-chain.
+
+For GRP v0.1, the same payer wallet must authorize the settlement transaction. A repayment from an unrelated wallet does not automatically satisfy the receivable unless a future explicit wallet-rotation/delegation mechanism is implemented.
+
+The private confirmation link therefore proves access to the intended payer flow, while the Solana signature proves control of the wallet committed to repayment.
 
 ### Originator / validator
 
@@ -287,12 +299,12 @@ The first Anchor program should prioritize a complete happy path:
 
 1. `initialize_protocol`
 2. `create_receivable`
-3. `record_payer_confirmation`
+3. `record_payer_confirmation` — requires the committed payer wallet as signer
 4. `record_validation`
 5. `create_pool`
 6. `fund_pool`
 7. `accept_partial_funding` if needed
-8. `settle_receivable`
+8. `settle_receivable` — requires settlement authorization from the same committed payer wallet
 9. `distribute`
 10. `update_passport` should happen as part of settlement/distribution logic, not as a free-standing requester action
 
@@ -330,6 +342,7 @@ Keep off-chain:
 On-chain:
 
 - opaque IDs;
+- requester/originator/payer wallet public keys needed for protocol authority;
 - commitments/hashes;
 - amounts necessary for protocol logic;
 - timestamps;
