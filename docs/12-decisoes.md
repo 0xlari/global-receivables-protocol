@@ -362,3 +362,13 @@
 - **Decisão:** o Receivable Passport é um estado agregado associado à carteira/identidade do solicitante e atualizado somente a partir de eventos válidos do GRP, especialmente liquidação e default. O solicitante não pode editar diretamente suas métricas.
 - **Métricas iniciais:** recebíveis criados, recebíveis liquidados, pagamentos no prazo, pagamentos em atraso, defaults, volume total liquidado e instante da última atualização.
 - **Consequências:** o Passport não é um score de crédito universal e não deve prometer solvência. Ele registra fatos operacionais verificáveis do protocolo que podem ser usados como sinal por aplicações futuras.
+
+
+## ADR-048 — carteira do pagador vinculada à confirmação e à liquidação
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para GRP v0.1
+- **Decisão:** o pagador acessa a confirmação por link privado, conecta uma carteira Solana e assina o compromisso do recebível com **a mesma carteira que deverá autorizar o pagamento no vencimento**. A assinatura vincula carteira, identificador público do recebível, valor confirmado, vencimento, mint de USDC, contexto do GRP e nonce/expiração anti-replay.
+- **Estado público:** a pubkey da carteira do pagador pode integrar o estado on-chain necessário à autorização; nome, e-mail, telefone, documentos e demais PII permanecem off-chain.
+- **Liquidação:** no GRP v0.1, a liquidação válida deve ser autorizada pela carteira previamente comprometida. Pagamento originado de outra carteira não quita automaticamente o recebível.
+- **Consequências:** a confirmação deixa de ser apenas um atestado do originador e passa a conter prova criptográfica de controle da carteira pagadora. Troca/delegação de carteira fica fora do primeiro MVP e, se necessária no futuro, exigirá mecanismo explícito e auditável.
