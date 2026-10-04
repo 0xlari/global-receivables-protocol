@@ -483,3 +483,18 @@ For GRP v0.1:
 - default is recorded once in the Receivable Passport.
 
 The smart contract records the financial state. Notifications and human collection are off-chain application responsibilities driven by the on-chain state.
+
+
+## Cured default
+
+A receivable that reaches DEFAULTED remains payable.
+
+If the payer later settles the full remaining obligation:
+
+- Receivable -> PAID_AFTER_DEFAULT
+- Pool -> CURED
+- the historical default remains recorded
+- Receivable Passport increments defaults_cured
+- the settlement is also counted as a late settlement
+
+This preserves both facts: the obligation defaulted, and it was later cured.
