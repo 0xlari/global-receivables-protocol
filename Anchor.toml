@@ -6,11 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-global_receivables_protocol = "5oQkAGMN2pg7iyPLAzni3dCZgAXn2NbakRKzfwgGU9qM"
+global_receivables_protocol = "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY"
 
 [provider]
-cluster = "Localnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "cargo test"
+
+[hooks]

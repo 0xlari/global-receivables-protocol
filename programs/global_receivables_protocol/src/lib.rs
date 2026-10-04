@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("5oQkAGMN2pg7iyPLAzni3dCZgAXn2NbakRKzfwgGU9qM");
+declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
 #[program]
 pub mod global_receivables_protocol {
