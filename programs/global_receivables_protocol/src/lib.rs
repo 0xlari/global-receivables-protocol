@@ -167,6 +167,120 @@ pub mod global_receivables_protocol {
     }
 
 
+
+    pub fn create_pool(
+        ctx: Context<CreatePool>,
+        target_amount: u64,
+        minimum_partial_bps: u16,
+        discount_bps: u16,
+        funding_deadline: i64,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(
+            ctx.accounts.receivable.status == ReceivableStatus::Approved,
+            GrpError::InvalidReceivableState
+        );
+        require!(
+            ctx.accounts.receivable.requester == ctx.accounts.requester.key(),
+            GrpError::UnauthorizedRequester
+        );
+        require!(target_amount > 0, GrpError::InvalidAmount);
+        require!(minimum_partial_bps <= 10_000, GrpError::InvalidBasisPoints);
+        require!(discount_bps <= 10_000, GrpError::InvalidBasisPoints);
+
+        let now = Clock::get()?.unix_timestamp;
+        require!(funding_deadline > now, GrpError::InvalidFundingDeadline);
+        require!(
+            funding_deadline < ctx.accounts.receivable.due_at,
+            GrpError::InvalidFundingDeadline
+        );
+
+        let pool = &mut ctx.accounts.pool;
+        pool.receivable = ctx.accounts.receivable.key();
+        pool.requester = ctx.accounts.requester.key();
+        pool.usdc_mint = ctx.accounts.usdc_mint.key();
+        pool.vault = ctx.accounts.pool_vault.key();
+        pool.target_amount = target_amount;
+        pool.funded_amount = 0;
+        pool.minimum_partial_bps = minimum_partial_bps;
+        pool.discount_bps = discount_bps;
+        pool.funding_deadline = funding_deadline;
+        pool.due_at = ctx.accounts.receivable.due_at;
+        pool.status = PoolStatus::Open;
+        pool.created_at = now;
+        pool.updated_at = now;
+        pool.bump = ctx.bumps.pool;
+
+        ctx.accounts.receivable.status = ReceivableStatus::Pooled;
+        ctx.accounts.receivable.updated_at = now;
+
+        Ok(())
+    }
+
+    pub fn fund_pool(
+        ctx: Context<FundPool>,
+        amount: u64,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(amount > 0, GrpError::InvalidAmount);
+
+        let now = Clock::get()?.unix_timestamp;
+        require!(
+            ctx.accounts.pool.status == PoolStatus::Open,
+            GrpError::PoolNotOpen
+        );
+        require!(
+            now <= ctx.accounts.pool.funding_deadline,
+            GrpError::FundingDeadlinePassed
+        );
+
+        let remaining_capacity = ctx.accounts.pool
+            .target_amount
+            .checked_sub(ctx.accounts.pool.funded_amount)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        require!(amount <= remaining_capacity, GrpError::PoolOverfunding);
+
+        let transfer_accounts = TransferChecked {
+            from: ctx.accounts.investor_token_account.to_account_info(),
+            mint: ctx.accounts.usdc_mint.to_account_info(),
+            to: ctx.accounts.pool_vault.to_account_info(),
+            authority: ctx.accounts.investor.to_account_info(),
+        };
+        let transfer_ctx = CpiContext::new(
+            ctx.accounts.token_program.key(),
+            transfer_accounts,
+        );
+        token::transfer_checked(
+            transfer_ctx,
+            amount,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+
+        let contribution = &mut ctx.accounts.contribution;
+        contribution.pool = ctx.accounts.pool.key();
+        contribution.investor = ctx.accounts.investor.key();
+        contribution.amount = amount;
+        contribution.distributed_amount = 0;
+        contribution.refunded_amount = 0;
+        contribution.status = ContributionStatus::Funded;
+        contribution.created_at = now;
+        contribution.bump = ctx.bumps.contribution;
+
+        ctx.accounts.pool.funded_amount = ctx.accounts.pool
+            .funded_amount
+            .checked_add(amount)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        ctx.accounts.pool.updated_at = now;
+
+        if ctx.accounts.pool.funded_amount == ctx.accounts.pool.target_amount {
+            ctx.accounts.pool.status = PoolStatus::Full;
+            ctx.accounts.receivable.status = ReceivableStatus::Funded;
+            ctx.accounts.receivable.updated_at = now;
+        }
+
+        Ok(())
+    }
+
     pub fn settle_receivable(ctx: Context<SettleReceivable>) -> Result<()> {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
 
@@ -437,6 +551,140 @@ pub struct RecordValidation<'info> {
 }
 
 
+
+#[derive(Accounts)]
+pub struct CreatePool<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        init,
+        payer = requester,
+        space = 8 + Pool::INIT_SPACE,
+        seeds = [
+            b"pool",
+            receivable.key().as_ref()
+        ],
+        bump
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        init,
+        payer = requester,
+        seeds = [
+            b"pool-vault",
+            pool.key().as_ref()
+        ],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = pool
+    )]
+    pub pool_vault: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub requester: Signer<'info>,
+
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FundPool<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"pool",
+            receivable.key().as_ref()
+        ],
+        bump = pool.bump,
+        has_one = receivable @ GrpError::InvalidPoolReceivable,
+        constraint = pool.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint,
+        constraint = pool.vault == pool_vault.key() @ GrpError::InvalidPoolVault
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        init,
+        payer = investor,
+        space = 8 + Contribution::INIT_SPACE,
+        seeds = [
+            b"contribution",
+            pool.key().as_ref(),
+            investor.key().as_ref()
+        ],
+        bump
+    )]
+    pub contribution: Account<'info, Contribution>,
+
+    #[account(mut)]
+    pub investor: Signer<'info>,
+
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = investor
+    )]
+    pub investor_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        address = pool.vault @ GrpError::InvalidPoolVault,
+        seeds = [
+            b"pool-vault",
+            pool.key().as_ref()
+        ],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = pool
+    )]
+    pub pool_vault: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
 #[derive(Accounts)]
 pub struct SettleReceivable<'info> {
     #[account(
@@ -612,6 +860,39 @@ pub struct Receivable {
     pub bump: u8,
 }
 
+
+#[account]
+#[derive(InitSpace)]
+pub struct Pool {
+    pub receivable: Pubkey,
+    pub requester: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub vault: Pubkey,
+    pub target_amount: u64,
+    pub funded_amount: u64,
+    pub minimum_partial_bps: u16,
+    pub discount_bps: u16,
+    pub funding_deadline: i64,
+    pub due_at: i64,
+    pub status: PoolStatus,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Contribution {
+    pub pool: Pubkey,
+    pub investor: Pubkey,
+    pub amount: u64,
+    pub distributed_amount: u64,
+    pub refunded_amount: u64,
+    pub status: ContributionStatus,
+    pub created_at: i64,
+    pub bump: u8,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct PayerAuthorization {
@@ -662,6 +943,49 @@ pub enum ReceivableStatus {
     Paid,
     Defaulted,
     Closed,
+}
+
+
+#[derive(
+    AnchorSerialize,
+    AnchorDeserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    InitSpace,
+)]
+pub enum PoolStatus {
+    Open,
+    Full,
+    PartialExpired,
+    AcceptedPartial,
+    Refunding,
+    Funded,
+    Settling,
+    Settled,
+    Defaulted,
+    Disputed,
+    Cancelled,
+}
+
+#[derive(
+    AnchorSerialize,
+    AnchorDeserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    InitSpace,
+)]
+pub enum ContributionStatus {
+    Funded,
+    Allocated,
+    Distributed,
+    RefundPending,
+    Refunded,
 }
 
 #[derive(
@@ -784,4 +1108,20 @@ pub enum GrpError {
     UnauthorizedPayer,
     #[msg("Arithmetic overflow.")]
     ArithmeticOverflow,
+    #[msg("Only the receivable requester can perform this action.")]
+    UnauthorizedRequester,
+    #[msg("Basis points must be between 0 and 10000.")]
+    InvalidBasisPoints,
+    #[msg("The funding deadline must be in the future and before the receivable due date.")]
+    InvalidFundingDeadline,
+    #[msg("The pool is not open for funding.")]
+    PoolNotOpen,
+    #[msg("The funding deadline has passed.")]
+    FundingDeadlinePassed,
+    #[msg("The contribution would overfund the pool.")]
+    PoolOverfunding,
+    #[msg("The pool does not belong to the provided receivable.")]
+    InvalidPoolReceivable,
+    #[msg("The pool vault does not match the configured pool vault.")]
+    InvalidPoolVault,
 }
