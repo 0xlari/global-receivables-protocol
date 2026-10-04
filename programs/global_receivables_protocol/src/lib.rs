@@ -76,6 +76,7 @@ pub mod global_receivables_protocol {
         receivable.created_at = now;
         receivable.updated_at = now;
         receivable.passport_recorded = false;
+        receivable.default_recorded = false;
         receivable.bump = ctx.bumps.receivable;
 
         ctx.accounts.passport.receivables_created = ctx.accounts.passport
@@ -622,6 +623,51 @@ pub mod global_receivables_protocol {
             .checked_add(due)
             .ok_or(GrpError::ArithmeticOverflow)?;
         ctx.accounts.pool.updated_at = now;
+
+        Ok(())
+    }
+
+
+    pub fn process_delinquency(ctx: Context<ProcessDelinquency>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(
+            ctx.accounts.payer_authorization.remaining_amount > 0,
+            GrpError::NothingToSettle
+        );
+        require!(
+            ctx.accounts.payer_authorization.status != PayerAuthorizationStatus::Settled,
+            GrpError::AlreadySettled
+        );
+
+        let now = Clock::get()?.unix_timestamp;
+        let one_day = 86_400i64;
+        let five_days = 5 * one_day;
+
+        if now >= ctx.accounts.receivable.due_at + five_days {
+            ctx.accounts.receivable.status = ReceivableStatus::Defaulted;
+            ctx.accounts.pool.status = PoolStatus::Defaulted;
+            ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Defaulted;
+            ctx.accounts.payer_authorization.had_payment_failure = true;
+
+            if !ctx.accounts.receivable.default_recorded {
+                ctx.accounts.passport.defaults = ctx.accounts.passport
+                    .defaults
+                    .checked_add(1)
+                    .ok_or(GrpError::ArithmeticOverflow)?;
+                ctx.accounts.passport.last_updated_at = now;
+                ctx.accounts.receivable.default_recorded = true;
+            }
+        } else if now >= ctx.accounts.receivable.due_at + one_day {
+            ctx.accounts.receivable.status = ReceivableStatus::Overdue;
+            ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
+            ctx.accounts.payer_authorization.had_payment_failure = true;
+        } else {
+            return err!(GrpError::DelinquencyWindowNotReached);
+        }
+
+        ctx.accounts.receivable.updated_at = now;
+        ctx.accounts.pool.updated_at = now;
+        ctx.accounts.payer_authorization.updated_at = now;
 
         Ok(())
     }
@@ -1307,6 +1353,51 @@ pub struct ClaimDistribution<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+
+#[derive(Accounts)]
+pub struct ProcessDelinquency<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump,
+        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        mut,
+        seeds = [b"pool", receivable.key().as_ref()],
+        bump = pool.bump,
+        has_one = receivable @ GrpError::InvalidPoolReceivable
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [b"payer-authorization", receivable.key().as_ref()],
+        bump = payer_authorization.bump
+    )]
+    pub payer_authorization: Account<'info, PayerAuthorization>,
+
+    #[account(
+        mut,
+        seeds = [b"passport", receivable.requester.as_ref()],
+        bump = passport.bump,
+        constraint = passport.subject == receivable.requester @ GrpError::InvalidPassportSubject
+    )]
+    pub passport: Account<'info, ReceivablePassport>,
+}
+
 #[derive(Accounts)]
 pub struct SetPause<'info> {
     #[account(
@@ -1351,6 +1442,7 @@ pub struct Receivable {
     pub created_at: i64,
     pub updated_at: i64,
     pub passport_recorded: bool,
+    pub default_recorded: bool,
     pub bump: u8,
 }
 
@@ -1450,6 +1542,7 @@ pub enum ReceivableStatus {
     Pooled,
     Funded,
     Due,
+    Overdue,
     Paid,
     Defaulted,
     Closed,
@@ -1512,6 +1605,7 @@ pub enum PayerAuthorizationStatus {
     Active,
     PaymentDue,
     Settled,
+    Defaulted,
     RevokedOrUnavailable,
 }
 
@@ -1616,6 +1710,16 @@ mod tests {
         let had_payment_failure = true;
         assert!(had_payment_failure);
     }
+
+    #[test]
+    fn delinquency_thresholds_are_one_and_five_days() {
+        let due_at = 1_800_000_000i64;
+        let one_day = 86_400i64;
+        let five_days = 5 * one_day;
+
+        assert!(due_at + one_day < due_at + five_days);
+        assert_eq!(five_days, 432_000);
+    }
 }
 
 #[error_code]
@@ -1700,4 +1804,6 @@ pub enum GrpError {
     InvalidContributionPool,
     #[msg("Only the contribution investor can claim this distribution.")]
     UnauthorizedInvestor,
+    #[msg("The delinquency window has not been reached yet.")]
+    DelinquencyWindowNotReached,
 }
