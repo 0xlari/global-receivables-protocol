@@ -372,3 +372,14 @@
 - **Estado público:** a pubkey da carteira do pagador pode integrar o estado on-chain necessário à autorização; nome, e-mail, telefone, documentos e demais PII permanecem off-chain.
 - **Liquidação:** no GRP v0.1, a liquidação válida deve ser autorizada pela carteira previamente comprometida. Pagamento originado de outra carteira não quita automaticamente o recebível.
 - **Consequências:** a confirmação deixa de ser apenas um atestado do originador e passa a conter prova criptográfica de controle da carteira pagadora. Troca/delegação de carteira fica fora do primeiro MVP e, se necessária no futuro, exigirá mecanismo explícito e auditável.
+
+
+## ADR-049 — autorização antecipada de débito USDC por delegate PDA
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para GRP v0.1
+- **Objetivo:** permitir que o pagamento do recebível seja executado no vencimento sem exigir que o pagador volte à aplicação e assine uma nova transação naquele momento.
+- **Decisão:** durante a confirmação, a carteira do pagador assina o compromisso do recebível e aprova uma **PDA controlada pelo programa GRP como delegate** da token account USDC do pagador, com allowance limitado ao valor máximo de liquidação daquele recebível. A autorização usa o Token Program e deve preferir operações checked.
+- **Execução:** programas Solana não executam sozinhos por relógio. No vencimento, um keeper/bot ou qualquer chamador permissionless envia a instrução `settle_receivable`. O programa verifica `due_at`, estado, mint USDC, carteira/token account comprometidas, valor e idempotência e então faz CPI ao Token Program usando a PDA delegate para transferir os USDC ao vault de liquidação.
+- **Limitação:** delegation não bloqueia saldo. O pagador pode revogar a autorização ou mover os USDC antes do vencimento; portanto o mecanismo automatiza e limita a cobrança, mas não garante disponibilidade financeira. Produção pode exigir garantia, reserva ou escrow adicional.
+- **Guardrails:** allowance limitado; nenhuma cobrança antes do vencimento; uma liquidação por recebível; falha segura para saldo insuficiente/revogação; nenhuma função genérica de saque pelo delegate; mint canônico fixado no `ProtocolConfig`.
