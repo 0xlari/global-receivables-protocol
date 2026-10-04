@@ -420,3 +420,52 @@ Safety requirements:
 - settlement must be idempotent and single-use;
 - partial balance / revoked delegate must fail safely and move the receivable to an explicit payment-failure/overdue path;
 - the delegate PDA must only authorize GRP settlement instructions and must not expose arbitrary transfer functionality.
+
+
+## Repayment fallback and overdue recovery
+
+GRP v0.1 must support two repayment paths for the payer:
+
+### 1. Automatic pull settlement
+
+At or after the due date, a keeper/backend calls `settle_receivable`.
+
+The program attempts to pull the authorized USDC amount from the committed payer token account through the previously approved delegate PDA.
+
+Possible outcomes:
+
+- success -> settlement continues normally;
+- insufficient balance -> receivable becomes `PAYMENT_DUE` / `PAYMENT_FAILED`;
+- delegate revoked / allowance insufficient -> receivable becomes `PAYMENT_DUE` / `PAYMENT_FAILED`;
+- token account invalid or wrong mint -> fail safely.
+
+A failed pull must not mark the receivable as paid.
+
+### 2. Manual payer repayment
+
+The payer must also be able to repay manually at any time after the receivable is payable.
+
+The application exposes a direct payment action using the same committed payer wallet. The payer signs a normal USDC transfer into the GRP settlement vault, and the program records the repayment against the receivable.
+
+The manual path is the fallback when automatic pull fails.
+
+The system must avoid double payment:
+
+- settlement state is idempotent;
+- the program checks the remaining amount due before accepting a manual payment;
+- if the automatic pull later succeeds after a manual payment, it may only collect the remaining unpaid amount;
+- once fully settled, further collection attempts are rejected.
+
+### Recovery workflow
+
+If automatic collection fails on the due date:
+
+1. GRP records a failed payment attempt;
+2. the requester is notified that the payer did not have sufficient funds or the authorization was unavailable;
+3. the requester can contact their payer outside the protocol;
+4. the payer can either:
+   - add USDC to the committed wallet so the automatic pull can be retried; or
+   - open the payment link and manually transfer USDC to the GRP settlement vault;
+5. after funds arrive, GRP records settlement and resumes distribution.
+
+The protocol is responsible for payment-state correctness; commercial collection between requester and payer remains outside the protocol.
