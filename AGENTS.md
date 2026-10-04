@@ -1,53 +1,97 @@
 # AGENTS.md
 
-## Objetivo
+## Objetivo atual
 
-Construir Elas Recebem Hoje: antecipação de pagamentos internacionais para pessoas no Brasil, com foco em mulheres, pools BTC/USDT, câmbio transparente e reputação Nostr. Salário, venda, comissão, serviço e outros pagamentos legítimos podem originar um recebível.
+Construir o **Global Receivables Protocol (GRP)**: infraestrutura em Solana para representar, validar, financiar e liquidar recebíveis globais.
 
-## Fontes de verdade
+Estrutura de produto:
 
-1. `docs/12-decisoes.md`
-2. `docs/01-prd.md`
+- GRP = protocolo/infraestrutura.
+- Receivable Passport = histórico portátil de performance derivado de recebíveis liquidados.
+- Elas Recebem Hoje = primeira vertical/aplicação do protocolo.
+
+## Regra de migração
+
+O repositório vem do projeto Hack4Freedom baseado em Bitcoin/Lightning/Nostr.
+
+Preservar o domínio de negócio útil e substituir a infraestrutura específica da arquitetura anterior de forma incremental.
+
+Não apagar módulos legados enquanto ainda houver imports ou responsabilidades ativas dependentes deles.
+
+Leia primeiro:
+
+1. `docs/GRP_MIGRATION.md`
+2. `README.md`
 3. `docs/03-modelo-de-dominio.md`
-4. `docs/04-arquitetura.md`
-5. `IMPLEMENTATION_PLAN.md`
+4. `docs/07-seguranca-privacidade-e-riscos.md`
+5. `docs/10-plano-de-testes.md`
 
-Leia `docs/00-contexto-do-projeto.md` antes dos documentos especializados.
+Documentos antigos de Bitcoin/Lightning ficam em `docs/legacy-hack4freedom/` e não são fonte de verdade para novas decisões.
 
-## Comandos
+## Arquitetura alvo
 
-- `pnpm dev`: inicia o ambiente local.
-- `pnpm lint`: executa o ESLint.
-- `pnpm typecheck`: valida os tipos sem emitir arquivos.
-- `pnpm test`: executa os testes unitários e de componentes.
-- `pnpm test:db`: aplica as migrations do zero em PostgreSQL embarcado e testa constraints, transações e idempotência.
-- `pnpm test:e2e`: executa os testes de navegação em desktop e celular.
-- `pnpm db:generate`: gera migrations Drizzle a partir do schema.
-- `pnpm db:migrate`: aplica migrations no PostgreSQL indicado por `DATABASE_URL`.
-- `pnpm db:studio`: abre o inspetor local do Drizzle.
-- `pnpm build`: gera a build de produção.
-- `pnpm check`: executa lint, tipos, testes unitários e build.
+Solana será a fonte canônica do estado financeiro público do GRP.
+
+USDC em Solana é o ativo principal de financiamento e liquidação do MVP.
+
+PostgreSQL/Supabase continua responsável por dados privados e operacionais:
+
+- documentos;
+- PII;
+- KYC;
+- dados privados do pagador;
+- underwriting;
+- comunicação;
+- auditoria operacional.
+
+## Legado — não desenvolver novas features
+
+- Bitcoin-specific settlement
+- Lightning
+- Breez / Liquid
+- NWC
+- DLC
+- Nostr como fonte canônica
+- relay quorum
+- projeções LRP/Nostr
+
+Esses módulos podem permanecer temporariamente apenas para manter build, testes e migração controlada.
 
 ## Convenções
 
-- Dinheiro em inteiros e operações idempotentes.
-- Partidas do ledger são valores assinados e precisam somar zero por ativo.
-- Toda alteração de schema exige migration versionada e teste partindo de banco vazio.
-- Mudanças pequenas, tipadas, auditáveis e acompanhadas de testes.
-- Diferenciar simulação, testnet e mainnet na UI e no código.
-- Registrar decisões materiais em `docs/12-decisoes.md`.
+- Dinheiro sempre em inteiros na menor unidade do ativo.
+- Operações financeiras idempotentes.
+- Partidas do ledger precisam somar zero por ativo.
+- Mudanças pequenas, tipadas, auditáveis e testadas.
+- Dados sensíveis nunca devem ir on-chain.
+- Não alterar fórmulas financeiras silenciosamente.
+- Toda nova lógica pública deve deixar claro qual autoridade pode executar cada transição.
+- Preferir simplificar a arquitetura ao transportar complexidade histórica para Solana.
+
+## Comandos atuais
+
+- `pnpm dev`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm test:db`
+- `pnpm test:e2e`
+- `pnpm build`
+- `pnpm check`
+
+Scripts `lrp:*` são considerados legado durante a migração e não devem ganhar novas funcionalidades.
 
 ## Segurança
 
-- Nunca armazenar `nsec`, seeds, macaroons, preimages ou documentos no Git/logs.
-- Nunca publicar PII ou dados reconstruíveis no Nostr.
-- Não habilitar mainnet, saques, swaps ou custódia sem autorização explícita e limites.
-- Não alterar fórmulas financeiras ou políticas de cobertura silenciosamente.
+- Nunca armazenar private keys, seeds ou mnemonics no Git/logs.
+- Nunca publicar PII ou documentos on-chain.
+- Não habilitar movimentação financeira real sem autorização explícita.
+- Não executar migrations destrutivas sem revisão.
+- Separar claramente demo/devnet/mainnet na UI e no código.
+- USDC real e mainnet somente após revisão específica.
 
-## Testes
+## Testes bloqueadores
 
-Máquinas de estado, ledger, conversões, idempotência e autorização são bloqueadores. Consulte `docs/10-plano-de-testes.md`.
+Máquinas de estado, ledger, valores, idempotência, autoridades e transições financeiras são bloqueadores.
 
-## Protegido sem autorização
-
-Mainnet, credenciais, migrações destrutivas, política de limites, split 30/70, cobertura, schema Nostr e documentos de usuárias.
+Toda substituição de comportamento legado deve preservar ou melhorar a cobertura relevante antes de remover o código antigo.
