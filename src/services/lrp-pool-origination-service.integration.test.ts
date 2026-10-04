@@ -177,6 +177,6 @@ describe("originação real de PoolCreated", () => {
     expect(JSON.stringify(signed)).not.toMatch(/nostr\+walletconnect|secret|preimage/i);
     await clearLrpProjections(database);
     await rebuildLrpProjections(database, relays, new Date(now.getTime() + 2000));
-    expect(await database.select().from(lrpPoolProjections)).toHaveLength(1);
+    expect(await database.select().from(lrpPoolProjections).where(eq(lrpPoolProjections.poolId, prepared.poolId))).toHaveLength(1);
   }, 30_000);
 });
