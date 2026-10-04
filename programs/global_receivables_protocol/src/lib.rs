@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, ApproveChecked, Mint, Token, TokenAccount};
+use anchor_lang::solana_program::program_option::COption;
+use anchor_spl::token::{self, ApproveChecked, Mint, Token, TokenAccount, TransferChecked};
 
 declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
@@ -49,6 +50,7 @@ pub mod global_receivables_protocol {
         receivable.payer_wallet = Pubkey::default();
         receivable.payer_token_account = Pubkey::default();
         receivable.payer_authorization = Pubkey::default();
+        receivable.settlement_vault = Pubkey::default();
         receivable.payer_commitment_hash = [0; 32];
         receivable.evidence_commitment = evidence_commitment;
         receivable.original_currency = original_currency;
@@ -107,6 +109,7 @@ pub mod global_receivables_protocol {
         authorization.usdc_mint = ctx.accounts.usdc_mint.key();
         authorization.authorized_amount = authorized_amount;
         authorization.remaining_amount = authorized_amount;
+        authorization.settlement_vault = ctx.accounts.settlement_vault.key();
         authorization.status = PayerAuthorizationStatus::Active;
         authorization.created_at = now;
         authorization.updated_at = now;
@@ -116,6 +119,7 @@ pub mod global_receivables_protocol {
         receivable.payer_wallet = ctx.accounts.payer.key();
         receivable.payer_token_account = ctx.accounts.payer_token_account.key();
         receivable.payer_authorization = authorization.key();
+        receivable.settlement_vault = ctx.accounts.settlement_vault.key();
         receivable.payer_commitment_hash = payer_commitment_hash;
         receivable.settlement_amount_usdc = authorized_amount;
         receivable.status = ReceivableStatus::UnderValidation;
@@ -158,6 +162,124 @@ pub mod global_receivables_protocol {
             ValidationDecision::Rejected => ReceivableStatus::Rejected,
         };
         receivable.updated_at = now;
+
+        Ok(())
+    }
+
+
+    pub fn settle_receivable(ctx: Context<SettleReceivable>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+
+        let now = Clock::get()?.unix_timestamp;
+        require!(now >= ctx.accounts.receivable.due_at, GrpError::ReceivableNotDue);
+        require!(
+            ctx.accounts.payer_authorization.remaining_amount > 0,
+            GrpError::NothingToSettle
+        );
+        require!(
+            ctx.accounts.payer_authorization.status != PayerAuthorizationStatus::Settled,
+            GrpError::AlreadySettled
+        );
+
+        let remaining = ctx.accounts.payer_authorization.remaining_amount;
+        let delegate_is_valid = matches!(
+            ctx.accounts.payer_token_account.delegate,
+            COption::Some(delegate) if delegate == ctx.accounts.payer_authorization.key()
+        ) && ctx.accounts.payer_token_account.delegated_amount >= remaining;
+
+        if ctx.accounts.payer_token_account.amount < remaining || !delegate_is_valid {
+            ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
+            ctx.accounts.payer_authorization.updated_at = now;
+            ctx.accounts.receivable.status = ReceivableStatus::Due;
+            ctx.accounts.receivable.updated_at = now;
+            return Ok(());
+        }
+
+        let receivable_key = ctx.accounts.receivable.key();
+        let bump = [ctx.accounts.payer_authorization.bump];
+        let signer_seeds: &[&[u8]] = &[
+            b"payer-authorization",
+            receivable_key.as_ref(),
+            &bump,
+        ];
+
+        let transfer_accounts = TransferChecked {
+            from: ctx.accounts.payer_token_account.to_account_info(),
+            mint: ctx.accounts.usdc_mint.to_account_info(),
+            to: ctx.accounts.settlement_vault.to_account_info(),
+            authority: ctx.accounts.payer_authorization.to_account_info(),
+        };
+        let signer = &[signer_seeds];
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            transfer_accounts,
+            signer,
+        );
+        token::transfer_checked(
+            transfer_ctx,
+            remaining,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+
+        ctx.accounts.payer_authorization.remaining_amount = 0;
+        ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Settled;
+        ctx.accounts.payer_authorization.updated_at = now;
+        ctx.accounts.receivable.status = ReceivableStatus::Paid;
+        ctx.accounts.receivable.updated_at = now;
+
+        Ok(())
+    }
+
+    pub fn manual_repayment(
+        ctx: Context<ManualRepayment>,
+        amount: u64,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+
+        let now = Clock::get()?.unix_timestamp;
+        require!(now >= ctx.accounts.receivable.due_at, GrpError::ReceivableNotDue);
+        require!(amount > 0, GrpError::InvalidAmount);
+        require!(
+            ctx.accounts.payer_authorization.status != PayerAuthorizationStatus::Settled,
+            GrpError::AlreadySettled
+        );
+        require!(
+            amount <= ctx.accounts.payer_authorization.remaining_amount,
+            GrpError::AmountExceedsRemaining
+        );
+
+        let transfer_accounts = TransferChecked {
+            from: ctx.accounts.payer_token_account.to_account_info(),
+            mint: ctx.accounts.usdc_mint.to_account_info(),
+            to: ctx.accounts.settlement_vault.to_account_info(),
+            authority: ctx.accounts.payer.to_account_info(),
+        };
+        let transfer_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            transfer_accounts,
+        );
+        token::transfer_checked(
+            transfer_ctx,
+            amount,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+
+        let remaining = ctx.accounts.payer_authorization
+            .remaining_amount
+            .checked_sub(amount)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+
+        ctx.accounts.payer_authorization.remaining_amount = remaining;
+        ctx.accounts.payer_authorization.updated_at = now;
+
+        if remaining == 0 {
+            ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Settled;
+            ctx.accounts.receivable.status = ReceivableStatus::Paid;
+        } else {
+            ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
+            ctx.accounts.receivable.status = ReceivableStatus::Due;
+        }
+        ctx.accounts.receivable.updated_at = now;
 
         Ok(())
     }
@@ -253,6 +375,19 @@ pub struct RecordPayerConfirmation<'info> {
     pub usdc_mint: Account<'info, Mint>,
 
     #[account(
+        init,
+        payer = payer,
+        seeds = [
+            b"settlement-vault",
+            receivable.key().as_ref()
+        ],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = payer_authorization
+    )]
+    pub settlement_vault: Account<'info, TokenAccount>,
+
+    #[account(
         mut,
         token::mint = usdc_mint,
         token::authority = payer
@@ -301,6 +436,136 @@ pub struct RecordValidation<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+pub struct SettleReceivable<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump,
+        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization,
+        has_one = payer_token_account @ GrpError::InvalidPayerTokenAccount,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"payer-authorization",
+            receivable.key().as_ref()
+        ],
+        bump = payer_authorization.bump,
+        has_one = payer_token_account @ GrpError::InvalidPayerTokenAccount,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault,
+        constraint = payer_authorization.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint
+    )]
+    pub payer_authorization: Account<'info, PayerAuthorization>,
+
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        address = payer_authorization.payer_token_account @ GrpError::InvalidPayerTokenAccount,
+        token::mint = usdc_mint
+    )]
+    pub payer_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        address = payer_authorization.settlement_vault @ GrpError::InvalidSettlementVault,
+        seeds = [
+            b"settlement-vault",
+            receivable.key().as_ref()
+        ],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = payer_authorization
+    )]
+    pub settlement_vault: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct ManualRepayment<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump,
+        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization,
+        has_one = payer_token_account @ GrpError::InvalidPayerTokenAccount,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"payer-authorization",
+            receivable.key().as_ref()
+        ],
+        bump = payer_authorization.bump,
+        constraint = payer_authorization.payer_wallet == payer.key() @ GrpError::UnauthorizedPayer,
+        constraint = payer_authorization.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint
+    )]
+    pub payer_authorization: Account<'info, PayerAuthorization>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        address = payer_authorization.payer_token_account @ GrpError::InvalidPayerTokenAccount,
+        token::mint = usdc_mint,
+        token::authority = payer
+    )]
+    pub payer_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        address = payer_authorization.settlement_vault @ GrpError::InvalidSettlementVault,
+        seeds = [
+            b"settlement-vault",
+            receivable.key().as_ref()
+        ],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = payer_authorization
+    )]
+    pub settlement_vault: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
 #[derive(Accounts)]
 pub struct SetPause<'info> {
     #[account(
@@ -334,6 +599,7 @@ pub struct Receivable {
     pub payer_wallet: Pubkey,
     pub payer_token_account: Pubkey,
     pub payer_authorization: Pubkey,
+    pub settlement_vault: Pubkey,
     pub payer_commitment_hash: [u8; 32],
     pub evidence_commitment: [u8; 32],
     pub original_currency: [u8; 3],
@@ -355,6 +621,7 @@ pub struct PayerAuthorization {
     pub usdc_mint: Pubkey,
     pub authorized_amount: u64,
     pub remaining_amount: u64,
+    pub settlement_vault: Pubkey,
     pub status: PayerAuthorizationStatus,
     pub created_at: i64,
     pub updated_at: i64,
@@ -452,4 +719,22 @@ pub enum GrpError {
     UnauthorizedValidator,
     #[msg("Only the protocol authority can perform this action.")]
     UnauthorizedAuthority,
+    #[msg("The receivable is not due yet.")]
+    ReceivableNotDue,
+    #[msg("There is no remaining amount to settle.")]
+    NothingToSettle,
+    #[msg("The receivable has already been settled.")]
+    AlreadySettled,
+    #[msg("The payment amount exceeds the remaining obligation.")]
+    AmountExceedsRemaining,
+    #[msg("The payer authorization account does not match the receivable.")]
+    InvalidPayerAuthorization,
+    #[msg("The payer token account does not match the committed account.")]
+    InvalidPayerTokenAccount,
+    #[msg("The settlement vault does not match the committed vault.")]
+    InvalidSettlementVault,
+    #[msg("Only the committed payer wallet can perform this action.")]
+    UnauthorizedPayer,
+    #[msg("Arithmetic overflow.")]
+    ArithmeticOverflow,
 }
