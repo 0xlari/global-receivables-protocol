@@ -1,0 +1,1 @@
+ALTER TABLE "pools" ADD CONSTRAINT "pools_full_matches_target" CHECK ("pools"."status" <> 'FULL'::pool_status or ("pools"."funded_amount" = "pools"."target_amount" and "pools"."reserved_amount" = 0));

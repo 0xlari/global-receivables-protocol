@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "external_payment_requests_single_active_mainnet_unique" ON "external_payment_requests" USING btree ("environment") WHERE "external_payment_requests"."environment" = 'MAINNET'::financial_environment and "external_payment_requests"."status" in ('PREPARING'::external_payment_status, 'PENDING'::external_payment_status);

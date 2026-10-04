@@ -1,0 +1,7 @@
+ALTER TABLE "pools" ADD COLUMN "funding_asset" "asset_code" DEFAULT 'BTC' NOT NULL;--> statement-breakpoint
+ALTER TABLE "contribution_intents" ADD CONSTRAINT "contribution_intents_asset_btc_only" CHECK ("contribution_intents"."asset" = 'BTC'::asset_code);--> statement-breakpoint
+ALTER TABLE "contributions" ADD CONSTRAINT "contributions_asset_btc_only" CHECK ("contributions"."asset" = 'BTC'::asset_code);--> statement-breakpoint
+ALTER TABLE "pools" ADD CONSTRAINT "pools_funding_asset_btc_only" CHECK ("pools"."funding_asset" = 'BTC'::asset_code);--> statement-breakpoint
+ALTER TABLE "pools" ADD CONSTRAINT "pools_mode_settlement_asset" CHECK (("pools"."mode" = 'FULL_BTC'::pool_mode and "pools"."settlement_asset" = 'BTC'::asset_code) or ("pools"."mode" = 'USD_PAIRED'::pool_mode and "pools"."settlement_asset" = 'USDT'::asset_code));--> statement-breakpoint
+ALTER TABLE "receivables" ADD CONSTRAINT "receivables_approved_requires_btc_acceptance" CHECK ("receivables"."status" not in ('APPROVED'::receivable_status, 'POOLED'::receivable_status, 'ADVANCED'::receivable_status, 'DUE'::receivable_status, 'PAID'::receivable_status, 'DEFAULTED'::receivable_status, 'CLOSED'::receivable_status) or "receivables"."client_accepted_btc" is true);--> statement-breakpoint
+ALTER TABLE "receivables" ADD CONSTRAINT "receivables_pilot_contract_asset" CHECK ("receivables"."contract_asset" = 'USD_REFERENCE'::asset_code);

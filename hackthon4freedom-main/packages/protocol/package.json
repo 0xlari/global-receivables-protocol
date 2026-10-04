@@ -1,0 +1,17 @@
+{
+  "name": "@lrp/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./kinds": "./src/kinds.ts",
+    "./version": "./src/version.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./canonical-json": "./src/canonical-json/index.ts"
+  },
+  "dependencies": {
+    "nostr-tools": "2.23.9",
+    "zod": "4.4.3"
+  }
+}

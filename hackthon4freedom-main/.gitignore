@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+/.pnpm-store
+
+# Next.js
+/.next
+/out
+
+# tests
+/coverage
+/playwright-report
+/test-results
+
+# local configuration
+.env*
+!.env.example
+
+# editor / OS
+.DS_Store
+Thumbs.db
+*.log
+/.breez-mainnet
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+.vercel
+.env*
+!.env.example
