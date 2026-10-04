@@ -342,3 +342,23 @@
 - **Privacidade e separação de papéis:** a plataforma nunca solicita, recebe ou armazena `nsec`. NWC permanece autorização operacional de pagamento, não login. A autoridade administrativa e o cliente originador não são substituídos pela pubkey da prestadora. Pubkeys diferentes não são unidas automaticamente.
 - **Compatibilidade:** LNURL-auth deixa a interface do produto, mas rotas, tabelas, repositórios, contas e sessões antigas permanecem intactos para expiração natural e rollback. Uma sessão antiga sem pubkey pode concluir o vínculo Nostr existente; uma sessão já vinculada nunca troca silenciosamente de identidade.
 - **Consequências:** ausência do signer bloqueia apenas novas autenticações e assinaturas públicas, não apaga o acesso já emitido. Este corte não habilita NIP-46, pagamentos, aportes, DLC, mainnet ou poderes administrativos.
+
+
+## ADR-046 — migração do LRP para Global Receivables Protocol em Solana
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para implementação no novo hackathon
+- **Contexto:** o projeto Hack4Freedom foi construído em Bitcoin, Lightning e Nostr. Para o novo hackathon, a prioridade competitiva passa a ser Solana, preservando o domínio de recebíveis e removendo complexidade específica da arquitetura anterior.
+- **Decisão:** o protocolo passa a se chamar **Global Receivables Protocol (GRP)**. Solana será a fonte canônica do estado financeiro público. O produto **Elas Recebem Hoje** passa a ser a primeira vertical sobre o GRP. **Receivable Passport** passa a representar o histórico portátil de performance derivado de recebíveis liquidados.
+- **Ativo:** o MVP usa **USDC em Solana** como principal ativo de financiamento e liquidação; SOL é usado para taxas e execução do programa.
+- **Privacidade:** documentos, PII, KYC, underwriting e dados privados do pagador permanecem off-chain. A chain recebe apenas estados, autoridades, valores necessários, timestamps e commitments seguros.
+- **Legado:** Bitcoin, Lightning, Breez, NWC, DLC e Nostr como fonte canônica entram em manutenção de legado e não recebem novas features. Eles só permanecem temporariamente enquanto responsabilidades ativas são substituídas sem quebrar a aplicação.
+- **Consequências:** os conceitos de recebível, confirmação do pagador, validação, pool, contribuição, liquidação e reputação permanecem; publicação em relay, quorum Nostr e settlement Lightning deixam de fazer parte do protocolo alvo.
+
+## ADR-047 — Receivable Passport derivado de resultados do protocolo
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para GRP v0.1
+- **Decisão:** o Receivable Passport é um estado agregado associado à carteira/identidade do solicitante e atualizado somente a partir de eventos válidos do GRP, especialmente liquidação e default. O solicitante não pode editar diretamente suas métricas.
+- **Métricas iniciais:** recebíveis criados, recebíveis liquidados, pagamentos no prazo, pagamentos em atraso, defaults, volume total liquidado e instante da última atualização.
+- **Consequências:** o Passport não é um score de crédito universal e não deve prometer solvência. Ele registra fatos operacionais verificáveis do protocolo que podem ser usados como sinal por aplicações futuras.
