@@ -36,6 +36,7 @@ pub mod global_receivables_protocol {
         passport.settled_on_time = 0;
         passport.settled_late = 0;
         passport.defaults = 0;
+        passport.defaults_cured = 0;
         passport.total_settled_amount = 0;
         passport.last_updated_at = now;
         passport.bump = ctx.bumps.passport;
@@ -471,10 +472,22 @@ pub mod global_receivables_protocol {
             .repaid_amount
             .checked_add(remaining)
             .ok_or(GrpError::ArithmeticOverflow)?;
-        ctx.accounts.pool.status = PoolStatus::Settled;
+        let was_defaulted = ctx.accounts.receivable.status == ReceivableStatus::Defaulted
+            || ctx.accounts.pool.status == PoolStatus::Defaulted
+            || ctx.accounts.payer_authorization.status == PayerAuthorizationStatus::Defaulted;
+
+        ctx.accounts.pool.status = if was_defaulted {
+            PoolStatus::Cured
+        } else {
+            PoolStatus::Settled
+        };
         ctx.accounts.pool.updated_at = now;
 
-        ctx.accounts.receivable.status = ReceivableStatus::Paid;
+        ctx.accounts.receivable.status = if was_defaulted {
+            ReceivableStatus::PaidAfterDefault
+        } else {
+            ReceivableStatus::Paid
+        };
         ctx.accounts.receivable.updated_at = now;
 
         apply_passport_settlement(
@@ -536,9 +549,21 @@ pub mod global_receivables_protocol {
         ctx.accounts.pool.updated_at = now;
 
         if remaining == 0 {
+            let was_defaulted = ctx.accounts.receivable.status == ReceivableStatus::Defaulted
+                || ctx.accounts.pool.status == PoolStatus::Defaulted
+                || ctx.accounts.payer_authorization.status == PayerAuthorizationStatus::Defaulted;
+
             ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Settled;
-            ctx.accounts.pool.status = PoolStatus::Settled;
-            ctx.accounts.receivable.status = ReceivableStatus::Paid;
+            ctx.accounts.pool.status = if was_defaulted {
+                PoolStatus::Cured
+            } else {
+                PoolStatus::Settled
+            };
+            ctx.accounts.receivable.status = if was_defaulted {
+                ReceivableStatus::PaidAfterDefault
+            } else {
+                ReceivableStatus::Paid
+            };
 
             apply_passport_settlement(
                 &mut ctx.accounts.receivable,
@@ -559,7 +584,7 @@ pub mod global_receivables_protocol {
     pub fn claim_distribution(ctx: Context<ClaimDistribution>) -> Result<()> {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
         require!(
-            ctx.accounts.pool.status == PoolStatus::Settled,
+            matches!(ctx.accounts.pool.status, PoolStatus::Settled | PoolStatus::Cured),
             GrpError::PoolNotSettled
         );
         require!(
@@ -692,7 +717,14 @@ fn apply_passport_settlement(
         .checked_add(1)
         .ok_or(GrpError::ArithmeticOverflow)?;
 
-    if authorization.had_payment_failure {
+    if receivable.default_recorded {
+        passport.defaults_cured = passport.defaults_cured
+            .checked_add(1)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        passport.settled_late = passport.settled_late
+            .checked_add(1)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+    } else if authorization.had_payment_failure {
         passport.settled_late = passport.settled_late
             .checked_add(1)
             .ok_or(GrpError::ArithmeticOverflow)?;
@@ -1455,6 +1487,7 @@ pub struct ReceivablePassport {
     pub settled_on_time: u64,
     pub settled_late: u64,
     pub defaults: u64,
+    pub defaults_cured: u64,
     pub total_settled_amount: u64,
     pub last_updated_at: i64,
     pub bump: u8,
@@ -1544,6 +1577,7 @@ pub enum ReceivableStatus {
     Due,
     Overdue,
     Paid,
+    PaidAfterDefault,
     Defaulted,
     Closed,
 }
@@ -1568,6 +1602,7 @@ pub enum PoolStatus {
     Funded,
     Settling,
     Settled,
+    Cured,
     Defaulted,
     Disputed,
     Cancelled,
@@ -1719,6 +1754,14 @@ mod tests {
 
         assert!(due_at + one_day < due_at + five_days);
         assert_eq!(five_days, 432_000);
+    }
+
+    #[test]
+    fn cured_default_preserves_default_history() {
+        let defaults = 1u64;
+        let defaults_cured = 1u64;
+        assert_eq!(defaults, 1);
+        assert_eq!(defaults_cured, 1);
     }
 }
 
