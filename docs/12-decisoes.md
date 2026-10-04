@@ -383,3 +383,14 @@
 - **Execução:** programas Solana não executam sozinhos por relógio. No vencimento, um keeper/bot ou qualquer chamador permissionless envia a instrução `settle_receivable`. O programa verifica `due_at`, estado, mint USDC, carteira/token account comprometidas, valor e idempotência e então faz CPI ao Token Program usando a PDA delegate para transferir os USDC ao vault de liquidação.
 - **Limitação:** delegation não bloqueia saldo. O pagador pode revogar a autorização ou mover os USDC antes do vencimento; portanto o mecanismo automatiza e limita a cobrança, mas não garante disponibilidade financeira. Produção pode exigir garantia, reserva ou escrow adicional.
 - **Guardrails:** allowance limitado; nenhuma cobrança antes do vencimento; uma liquidação por recebível; falha segura para saldo insuficiente/revogação; nenhuma função genérica de saque pelo delegate; mint canônico fixado no `ProtocolConfig`.
+
+
+## ADR-050 — cobrança automática com fallback de pagamento manual
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para GRP v0.1
+- **Decisão:** no vencimento, o backend/keeper tenta a cobrança automática via delegate PDA. Se a carteira do pagador não tiver saldo suficiente, se o allowance estiver insuficiente ou se a autorização tiver sido revogada, o recebível não é marcado como pago e entra em estado explícito de pagamento devido/falha de cobrança.
+- **Fallback:** o pagador deve poder abrir o link do recebível e pagar manualmente em USDC para o vault de liquidação do GRP, usando a carteira comprometida. O programa registra o pagamento manual contra o recebível.
+- **Recuperação:** após falha da cobrança automática, a solicitante é avisada e pode cobrar diretamente seu pagador. O pagador pode abastecer a carteira para novo retry automático ou fazer o pagamento manual.
+- **Idempotência:** cobrança automática e pagamento manual compartilham o mesmo saldo de obrigação. O programa rejeita cobrança acima do valor restante e impede pagamento duplicado após liquidação integral.
+- **Responsabilidade:** o protocolo garante integridade do estado e da liquidação; a cobrança comercial do devedor continua sendo responsabilidade da relação entre solicitante e pagador.
