@@ -469,3 +469,17 @@ If automatic collection fails on the due date:
 5. after funds arrive, GRP records settlement and resumes distribution.
 
 The protocol is responsible for payment-state correctness; commercial collection between requester and payer remains outside the protocol.
+
+
+## Delinquency policy
+
+For GRP v0.1:
+
+- at the contractual due date, the receivable is payable and the automatic collection path may execute;
+- if the obligation remains unpaid for **1 full day after due_at**, the receivable becomes **OVERDUE**;
+- when OVERDUE, the platform backend must notify the requester/originator-facing user that the payer has not completed payment and commercial collection should begin;
+- the payer may still fund the committed wallet for retry or pay manually through the GRP payment flow;
+- if any amount remains unpaid for **5 full days after due_at**, the receivable becomes **DEFAULTED**;
+- default is recorded once in the Receivable Passport.
+
+The smart contract records the financial state. Notifications and human collection are off-chain application responsibilities driven by the on-chain state.
