@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token::{self, ApproveChecked, Mint, Token, TokenAccount};
 
 declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
@@ -47,10 +48,12 @@ pub mod global_receivables_protocol {
         receivable.originator = originator;
         receivable.payer_wallet = Pubkey::default();
         receivable.payer_token_account = Pubkey::default();
+        receivable.payer_authorization = Pubkey::default();
         receivable.payer_commitment_hash = [0; 32];
         receivable.evidence_commitment = evidence_commitment;
         receivable.original_currency = original_currency;
         receivable.nominal_amount_minor = nominal_amount_minor;
+        receivable.settlement_amount_usdc = 0;
         receivable.due_at = due_at;
         receivable.status = ReceivableStatus::AwaitingPayer;
         receivable.created_at = now;
@@ -63,24 +66,60 @@ pub mod global_receivables_protocol {
     pub fn record_payer_confirmation(
         ctx: Context<RecordPayerConfirmation>,
         payer_commitment_hash: [u8; 32],
+        authorized_amount: u64,
     ) -> Result<()> {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
-
-        let receivable = &mut ctx.accounts.receivable;
-        require!(
-            receivable.status == ReceivableStatus::AwaitingPayer,
-            GrpError::InvalidReceivableState
-        );
+        require!(authorized_amount > 0, GrpError::InvalidAmount);
         require!(
             payer_commitment_hash != [0; 32],
             GrpError::InvalidCommitment
         );
+        require!(
+            ctx.accounts.receivable.status == ReceivableStatus::AwaitingPayer,
+            GrpError::InvalidReceivableState
+        );
 
+        // The payer signs this outer transaction. In the same atomic transaction,
+        // the Token Program grants the receivable-specific GRP PDA a bounded
+        // delegate allowance over the payer's USDC token account.
+        let approve_accounts = ApproveChecked {
+            to: ctx.accounts.payer_token_account.to_account_info(),
+            mint: ctx.accounts.usdc_mint.to_account_info(),
+            delegate: ctx.accounts.payer_authorization.to_account_info(),
+            authority: ctx.accounts.payer.to_account_info(),
+        };
+        let approve_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            approve_accounts,
+        );
+        token::approve_checked(
+            approve_ctx,
+            authorized_amount,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+
+        let now = Clock::get()?.unix_timestamp;
+
+        let authorization = &mut ctx.accounts.payer_authorization;
+        authorization.receivable = ctx.accounts.receivable.key();
+        authorization.payer_wallet = ctx.accounts.payer.key();
+        authorization.payer_token_account = ctx.accounts.payer_token_account.key();
+        authorization.usdc_mint = ctx.accounts.usdc_mint.key();
+        authorization.authorized_amount = authorized_amount;
+        authorization.remaining_amount = authorized_amount;
+        authorization.status = PayerAuthorizationStatus::Active;
+        authorization.created_at = now;
+        authorization.updated_at = now;
+        authorization.bump = ctx.bumps.payer_authorization;
+
+        let receivable = &mut ctx.accounts.receivable;
         receivable.payer_wallet = ctx.accounts.payer.key();
         receivable.payer_token_account = ctx.accounts.payer_token_account.key();
+        receivable.payer_authorization = authorization.key();
         receivable.payer_commitment_hash = payer_commitment_hash;
+        receivable.settlement_amount_usdc = authorized_amount;
         receivable.status = ReceivableStatus::UnderValidation;
-        receivable.updated_at = Clock::get()?.unix_timestamp;
+        receivable.updated_at = now;
 
         Ok(())
     }
@@ -193,11 +232,35 @@ pub struct RecordPayerConfirmation<'info> {
     )]
     pub receivable: Account<'info, Receivable>,
 
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + PayerAuthorization::INIT_SPACE,
+        seeds = [
+            b"payer-authorization",
+            receivable.key().as_ref()
+        ],
+        bump
+    )]
+    pub payer_authorization: Account<'info, PayerAuthorization>,
+
+    #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// CHECK: In the next implementation cut this becomes a checked USDC token account
-    /// and the payer grants the GRP settlement PDA a bounded delegate allowance.
-    pub payer_token_account: UncheckedAccount<'info>,
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = payer
+    )]
+    pub payer_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -270,12 +333,29 @@ pub struct Receivable {
     pub originator: Pubkey,
     pub payer_wallet: Pubkey,
     pub payer_token_account: Pubkey,
+    pub payer_authorization: Pubkey,
     pub payer_commitment_hash: [u8; 32],
     pub evidence_commitment: [u8; 32],
     pub original_currency: [u8; 3],
     pub nominal_amount_minor: u64,
+    pub settlement_amount_usdc: u64,
     pub due_at: i64,
     pub status: ReceivableStatus,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PayerAuthorization {
+    pub receivable: Pubkey,
+    pub payer_wallet: Pubkey,
+    pub payer_token_account: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub authorized_amount: u64,
+    pub remaining_amount: u64,
+    pub status: PayerAuthorizationStatus,
     pub created_at: i64,
     pub updated_at: i64,
     pub bump: u8,
@@ -315,6 +395,23 @@ pub enum ReceivableStatus {
     Paid,
     Defaulted,
     Closed,
+}
+
+#[derive(
+    AnchorSerialize,
+    AnchorDeserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    InitSpace,
+)]
+pub enum PayerAuthorizationStatus {
+    Active,
+    PaymentDue,
+    Settled,
+    RevokedOrUnavailable,
 }
 
 #[derive(
