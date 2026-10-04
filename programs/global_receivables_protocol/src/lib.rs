@@ -91,7 +91,7 @@ pub mod global_receivables_protocol {
             authority: ctx.accounts.payer.to_account_info(),
         };
         let approve_ctx = CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.token_program.key(),
             approve_accounts,
         );
         token::approve_checked(
@@ -211,7 +211,7 @@ pub mod global_receivables_protocol {
         };
         let signer = &[signer_seeds];
         let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.token_program.key(),
             transfer_accounts,
             signer,
         );
@@ -255,7 +255,7 @@ pub mod global_receivables_protocol {
             authority: ctx.accounts.payer.to_account_info(),
         };
         let transfer_ctx = CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.token_program.key(),
             transfer_accounts,
         );
         token::transfer_checked(
@@ -704,11 +704,10 @@ mod tests {
 
     #[test]
     fn payer_authorization_status_supports_retry_flow() {
-        let mut status = PayerAuthorizationStatus::Active;
-        status = PayerAuthorizationStatus::PaymentDue;
+        let status = PayerAuthorizationStatus::PaymentDue;
         assert_eq!(status, PayerAuthorizationStatus::PaymentDue);
 
-        status = PayerAuthorizationStatus::Settled;
+        let status = PayerAuthorizationStatus::Settled;
         assert_eq!(status, PayerAuthorizationStatus::Settled);
     }
 
