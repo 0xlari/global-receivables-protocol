@@ -404,3 +404,13 @@
 - **Operação:** ao entrar em OVERDUE, o backend da plataforma deve avisar a solicitante que antecipou o recebível para que ela cobre seu pagador. O pagador pode abastecer a carteira comprometida para um novo retry ou usar o pagamento manual.
 - **Passport:** DEFAULTED incrementa uma única vez o contador de defaults do Receivable Passport. Um atraso quitado antes de D+5 permanece como liquidação tardia, não como default.
 - **Responsabilidades:** a chain controla estado, prazo e integridade financeira; contato, lembretes e cobrança comercial são responsabilidades off-chain da aplicação.
+
+
+## ADR-052 — inadimplência regularizada permanece no histórico
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para GRP v0.1
+- **Decisão:** atingir DEFAULTED em D+5 não encerra a obrigação nem bloqueia pagamento futuro. O pagador pode regularizar dias ou semanas depois por retry automático ou pagamento manual.
+- **Estado após quitação:** recebível passa para **PAID_AFTER_DEFAULT** e a pool para **CURED**.
+- **Passport:** o default original permanece registrado e a regularização incrementa **defaults_cured**. A quitação também conta como liquidação tardia.
+- **Objetivo:** distinguir claramente entre inadimplência ainda em aberto e inadimplência posteriormente regularizada, sem apagar histórico econômico relevante.
