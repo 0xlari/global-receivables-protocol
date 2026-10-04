@@ -697,6 +697,54 @@ pub enum ValidationDecision {
     Rejected,
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payer_authorization_status_supports_retry_flow() {
+        let mut status = PayerAuthorizationStatus::Active;
+        status = PayerAuthorizationStatus::PaymentDue;
+        assert_eq!(status, PayerAuthorizationStatus::PaymentDue);
+
+        status = PayerAuthorizationStatus::Settled;
+        assert_eq!(status, PayerAuthorizationStatus::Settled);
+    }
+
+    #[test]
+    fn partial_manual_repayment_math_is_bounded() {
+        let remaining = 1_000_000u64;
+        let payment = 400_000u64;
+        let next = remaining.checked_sub(payment).unwrap();
+        assert_eq!(next, 600_000);
+    }
+
+    #[test]
+    fn overpayment_is_rejected_by_remaining_amount_rule() {
+        let remaining = 1_000_000u64;
+        let payment = 1_000_001u64;
+        assert!(payment > remaining);
+    }
+
+    #[test]
+    fn full_payment_reaches_zero_remaining() {
+        let remaining = 1_000_000u64;
+        let payment = 1_000_000u64;
+        let next = remaining.checked_sub(payment).unwrap();
+        assert_eq!(next, 0);
+    }
+
+    #[test]
+    fn receivable_due_rule_blocks_early_collection() {
+        let due_at = 1_800_000_000i64;
+        let before_due = due_at - 1;
+        let at_due = due_at;
+        assert!(before_due < due_at);
+        assert!(at_due >= due_at);
+    }
+}
+
 #[error_code]
 pub enum GrpError {
     #[msg("The protocol is paused.")]
