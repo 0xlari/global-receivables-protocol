@@ -1,0 +1,380 @@
+# GRP v0.1 — Solana architecture
+
+## Goal
+
+Define the first Solana architecture for the **Global Receivables Protocol (GRP)** before implementing the on-chain program.
+
+The migration preserves the receivables business domain and replaces the former Bitcoin/Lightning/Nostr public-state layer.
+
+## Product layers
+
+### Global Receivables Protocol (GRP)
+
+Open infrastructure for creating, validating, financing and settling receivables.
+
+### Receivable Passport
+
+Portable performance history derived from completed receivables and settlement outcomes.
+
+### Elas Recebem Hoje
+
+First vertical application of GRP, focused initially on people and small businesses in Brazil receiving from international payers.
+
+## Canonical state
+
+For GRP v0.1:
+
+- **Solana** is the canonical public financial state layer.
+- **PostgreSQL/Supabase** stores private and operational data.
+- Sensitive evidence is never published on-chain.
+- The database may cache or index Solana state, but it must not fabricate an on-chain transition.
+
+## Settlement asset
+
+The hackathon MVP uses **USDC on Solana** as the primary financing and settlement asset.
+
+Reasons:
+
+- receivables are usually denominated in fiat/reference currencies;
+- a stable settlement asset avoids forcing investors or requesters to take SOL price exposure;
+- the demo becomes easier to understand;
+- the asset maps naturally to cross-border receivables financing.
+
+SOL is used for network fees and program execution.
+
+## On-chain accounts
+
+The first GRP program should use PDAs for protocol-owned state.
+
+### ProtocolConfig
+
+Singleton configuration account.
+
+Suggested fields:
+
+- authority
+- treasury
+- usdc_mint
+- protocol_version
+- paused
+- bump
+
+Purpose:
+
+- define the canonical USDC mint;
+- define protocol administration;
+- allow an emergency pause in the MVP;
+- version the protocol.
+
+### Receivable
+
+Represents the public state of one receivable.
+
+Suggested fields:
+
+- id / public nonce
+- requester
+- originator
+- payer_commitment_hash
+- evidence_commitment
+- original_currency_code
+- nominal_amount_minor
+- due_at
+- status
+- created_at
+- updated_at
+- bump
+
+The account must not contain:
+
+- payer name
+- email
+- phone
+- contract text
+- document URL
+- CPF / tax ID
+- private notes
+
+### Validation
+
+Records the originator decision for a receivable.
+
+Suggested fields:
+
+- receivable
+- validator
+- decision
+- decision_commitment
+- rules_version
+- created_at
+- bump
+
+Possible decisions:
+
+- NEEDS_INFORMATION
+- APPROVED
+- REJECTED
+
+### Pool
+
+Represents financing terms for one approved receivable.
+
+Suggested fields:
+
+- receivable
+- requester
+- usdc_mint
+- target_amount
+- funded_amount
+- minimum_partial_bps
+- discount_bps
+- funding_deadline
+- due_at
+- status
+- created_at
+- bump
+
+Invariant:
+
+- one active financing pool per receivable.
+
+### Contribution
+
+Represents one investor allocation into a pool.
+
+Suggested fields:
+
+- pool
+- investor
+- amount
+- created_at
+- distributed_amount
+- refunded_amount
+- status
+- bump
+
+For the MVP, a PDA per contribution is acceptable even if a production design later aggregates positions differently.
+
+### Settlement
+
+Records repayment/settlement outcome.
+
+Suggested fields:
+
+- receivable
+- pool
+- settlement_amount
+- settled_at
+- outcome
+- settlement_reference
+- bump
+
+Possible outcomes:
+
+- PAID_ON_TIME
+- PAID_LATE
+- PARTIAL
+- DEFAULTED
+
+### ReceivablePassport
+
+Aggregated portable performance account for one requester.
+
+Suggested fields:
+
+- subject
+- receivables_created
+- receivables_settled
+- settled_on_time
+- settled_late
+- defaults
+- total_settled_amount
+- last_updated_at
+- bump
+
+This account must be derived from protocol outcomes and not manually editable by the requester.
+
+## PDA strategy
+
+Initial seed strategy:
+
+- ProtocolConfig: ["config"]
+- Receivable: ["receivable", requester, receivable_id]
+- Validation: ["validation", receivable, validator]
+- Pool: ["pool", receivable]
+- Contribution: ["contribution", pool, investor]
+- Settlement: ["settlement", receivable]
+- ReceivablePassport: ["passport", requester]
+
+Exact byte representation of `receivable_id` must be fixed before coding and remain deterministic.
+
+## Authorities
+
+### Requester
+
+Can:
+
+- create a receivable;
+- accept financing terms;
+- request pool creation;
+- accept partial funding when protocol rules allow it.
+
+Cannot:
+
+- validate their own receivable;
+- change settlement outcome;
+- edit Passport statistics.
+
+### Payer
+
+In the MVP, payer confirmation remains initiated through a private off-chain link.
+
+The public chain stores only a commitment/proof reference. The payer does not need a persistent GRP account for the first hackathon version.
+
+A later version may allow payer wallet signatures directly.
+
+### Originator / validator
+
+Can:
+
+- validate receivables;
+- approve, reject or request more information;
+- submit the payer-confirmation commitment;
+- attest settlement facts in the hackathon MVP.
+
+This is a deliberate centralization in v0.1 and must be disclosed.
+
+### Investor
+
+Can:
+
+- contribute USDC to an open pool;
+- receive distributions or refunds according to program state.
+
+### Protocol authority
+
+Can:
+
+- initialize configuration;
+- pause unsafe operations in the MVP;
+- update explicitly upgradeable configuration.
+
+It must not be able to silently rewrite settled receivables or Passport history.
+
+## State machines
+
+### Receivable
+
+`DRAFT/CREATED -> AWAITING_PAYER -> UNDER_VALIDATION -> APPROVED | NEEDS_INFORMATION | REJECTED -> POOLED -> FUNDED -> DUE -> PAID | DEFAULTED -> CLOSED`
+
+The application may keep richer private states off-chain, but on-chain states should stay minimal.
+
+### Pool
+
+`DRAFT -> OPEN -> FULL | PARTIAL_EXPIRED | CANCELLED`
+
+`PARTIAL_EXPIRED -> ACCEPTED_PARTIAL | REFUNDING`
+
+`FULL | ACCEPTED_PARTIAL -> FUNDED -> SETTLING -> SETTLED | DEFAULTED | DISPUTED`
+
+### Contribution
+
+`FUNDED -> ALLOCATED -> DISTRIBUTED | REFUND_PENDING -> REFUNDED`
+
+## Core instructions for the first program
+
+The first Anchor program should prioritize a complete happy path:
+
+1. `initialize_protocol`
+2. `create_receivable`
+3. `record_payer_confirmation`
+4. `record_validation`
+5. `create_pool`
+6. `fund_pool`
+7. `accept_partial_funding` if needed
+8. `settle_receivable`
+9. `distribute`
+10. `update_passport` should happen as part of settlement/distribution logic, not as a free-standing requester action
+
+The exact instruction set may be simplified during implementation if one instruction can safely perform multiple atomic transitions.
+
+## USDC custody model for the hackathon
+
+For the demo, the preferred model is program-controlled token accounts associated with each pool.
+
+High-level flow:
+
+1. investor transfers USDC into the pool vault;
+2. program records contribution;
+3. when funding conditions are satisfied, the program marks the pool funded;
+4. disbursement/settlement behavior is executed according to the MVP demo model;
+5. repayment funds are distributed pro rata.
+
+Do not implement production-grade custody claims without explicit security review.
+
+## Off-chain data model
+
+Keep off-chain:
+
+- full contracts;
+- identity documents;
+- payer identity;
+- email and phone;
+- KYC/AML outputs;
+- underwriting notes;
+- fraud signals;
+- communication history;
+- raw confirmation tokens;
+- object-storage references.
+
+On-chain:
+
+- opaque IDs;
+- commitments/hashes;
+- amounts necessary for protocol logic;
+- timestamps;
+- authorities;
+- states;
+- settlement outcomes;
+- Passport aggregates.
+
+## Privacy rule
+
+Hashing PII does not make it safe to publish.
+
+Only commitments generated from opaque identifiers or sufficiently high-entropy/salted material may be considered for public use.
+
+## What is intentionally removed from the new protocol
+
+The GRP v0.1 architecture does not carry forward:
+
+- Nostr relay quorum;
+- NIP-07 authentication as protocol identity;
+- NWC authorization;
+- Lightning invoices;
+- Breez/Liquid settlement;
+- DLCs;
+- BTC-denominated pool targets;
+- sats-based accounting in the new on-chain flow.
+
+## What is preserved from the previous project
+
+- receivable lifecycle;
+- payer confirmation concept;
+- validation workflow;
+- one-active-pool invariant;
+- partial funding concept;
+- idempotency mindset;
+- integer accounting;
+- auditability;
+- private/public data separation;
+- explainable financial rules;
+- reputation derived from completed financial events.
+
+## MVP success criterion
+
+A successful hackathon demo must show one coherent path:
+
+`Create receivable -> payer confirms -> originator approves -> pool opens -> investor funds in USDC -> receivable settles -> funds distribute -> Receivable Passport updates`
+
+The demo should prefer one real, understandable flow over many partially implemented features.
