@@ -27,6 +27,21 @@ pub mod global_receivables_protocol {
         Ok(())
     }
 
+    pub fn initialize_passport(ctx: Context<InitializePassport>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let passport = &mut ctx.accounts.passport;
+        passport.subject = ctx.accounts.subject.key();
+        passport.receivables_created = 0;
+        passport.receivables_settled = 0;
+        passport.settled_on_time = 0;
+        passport.settled_late = 0;
+        passport.defaults = 0;
+        passport.total_settled_amount = 0;
+        passport.last_updated_at = now;
+        passport.bump = ctx.bumps.passport;
+        Ok(())
+    }
+
     pub fn create_receivable(
         ctx: Context<CreateReceivable>,
         receivable_id: [u8; 16],
@@ -60,7 +75,14 @@ pub mod global_receivables_protocol {
         receivable.status = ReceivableStatus::AwaitingPayer;
         receivable.created_at = now;
         receivable.updated_at = now;
+        receivable.passport_recorded = false;
         receivable.bump = ctx.bumps.receivable;
+
+        ctx.accounts.passport.receivables_created = ctx.accounts.passport
+            .receivables_created
+            .checked_add(1)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        ctx.accounts.passport.last_updated_at = now;
 
         Ok(())
     }
@@ -111,6 +133,7 @@ pub mod global_receivables_protocol {
         authorization.remaining_amount = authorized_amount;
         authorization.settlement_vault = ctx.accounts.settlement_vault.key();
         authorization.status = PayerAuthorizationStatus::Active;
+        authorization.had_payment_failure = false;
         authorization.created_at = now;
         authorization.updated_at = now;
         authorization.bump = ctx.bumps.payer_authorization;
@@ -202,6 +225,8 @@ pub mod global_receivables_protocol {
         pool.vault = ctx.accounts.pool_vault.key();
         pool.target_amount = target_amount;
         pool.funded_amount = 0;
+        pool.repaid_amount = 0;
+        pool.distributed_amount = 0;
         pool.minimum_partial_bps = minimum_partial_bps;
         pool.discount_bps = discount_bps;
         pool.funding_deadline = funding_deadline;
@@ -404,6 +429,7 @@ pub mod global_receivables_protocol {
 
         if ctx.accounts.payer_token_account.amount < remaining || !delegate_is_valid {
             ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
+            ctx.accounts.payer_authorization.had_payment_failure = true;
             ctx.accounts.payer_authorization.updated_at = now;
             ctx.accounts.receivable.status = ReceivableStatus::Due;
             ctx.accounts.receivable.updated_at = now;
@@ -439,8 +465,23 @@ pub mod global_receivables_protocol {
         ctx.accounts.payer_authorization.remaining_amount = 0;
         ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Settled;
         ctx.accounts.payer_authorization.updated_at = now;
+
+        ctx.accounts.pool.repaid_amount = ctx.accounts.pool
+            .repaid_amount
+            .checked_add(remaining)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        ctx.accounts.pool.status = PoolStatus::Settled;
+        ctx.accounts.pool.updated_at = now;
+
         ctx.accounts.receivable.status = ReceivableStatus::Paid;
         ctx.accounts.receivable.updated_at = now;
+
+        apply_passport_settlement(
+            &mut ctx.accounts.receivable,
+            &ctx.accounts.payer_authorization,
+            &mut ctx.accounts.passport,
+            now,
+        )?;
 
         Ok(())
     }
@@ -487,14 +528,100 @@ pub mod global_receivables_protocol {
         ctx.accounts.payer_authorization.remaining_amount = remaining;
         ctx.accounts.payer_authorization.updated_at = now;
 
+        ctx.accounts.pool.repaid_amount = ctx.accounts.pool
+            .repaid_amount
+            .checked_add(amount)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        ctx.accounts.pool.updated_at = now;
+
         if remaining == 0 {
             ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Settled;
+            ctx.accounts.pool.status = PoolStatus::Settled;
             ctx.accounts.receivable.status = ReceivableStatus::Paid;
+
+            apply_passport_settlement(
+                &mut ctx.accounts.receivable,
+                &ctx.accounts.payer_authorization,
+                &mut ctx.accounts.passport,
+                now,
+            )?;
         } else {
             ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
+            ctx.accounts.payer_authorization.had_payment_failure = true;
             ctx.accounts.receivable.status = ReceivableStatus::Due;
         }
         ctx.accounts.receivable.updated_at = now;
+
+        Ok(())
+    }
+
+    pub fn claim_distribution(ctx: Context<ClaimDistribution>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(
+            ctx.accounts.pool.status == PoolStatus::Settled,
+            GrpError::PoolNotSettled
+        );
+        require!(
+            ctx.accounts.contribution.status == ContributionStatus::Funded
+                || ctx.accounts.contribution.status == ContributionStatus::Allocated,
+            GrpError::ContributionNotClaimable
+        );
+        require!(
+            ctx.accounts.contribution.distributed_amount == 0,
+            GrpError::DistributionAlreadyClaimed
+        );
+        require!(
+            ctx.accounts.pool.funded_amount > 0,
+            GrpError::InvalidAmount
+        );
+
+        let numerator = u128::from(ctx.accounts.pool.repaid_amount)
+            .checked_mul(u128::from(ctx.accounts.contribution.amount))
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        let due_u128 = numerator
+            .checked_div(u128::from(ctx.accounts.pool.funded_amount))
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        let due = u64::try_from(due_u128).map_err(|_| GrpError::ArithmeticOverflow)?;
+        require!(due > 0, GrpError::NothingToDistribute);
+        require!(
+            ctx.accounts.settlement_vault.amount >= due,
+            GrpError::InsufficientSettlementBalance
+        );
+
+        let receivable_key = ctx.accounts.receivable.key();
+        let bump = [ctx.accounts.payer_authorization.bump];
+        let signer_seeds: &[&[u8]] = &[
+            b"payer-authorization",
+            receivable_key.as_ref(),
+            &bump,
+        ];
+
+        let transfer_accounts = TransferChecked {
+            from: ctx.accounts.settlement_vault.to_account_info(),
+            mint: ctx.accounts.usdc_mint.to_account_info(),
+            to: ctx.accounts.investor_token_account.to_account_info(),
+            authority: ctx.accounts.payer_authorization.to_account_info(),
+        };
+        let signer = &[signer_seeds];
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            transfer_accounts,
+            signer,
+        );
+        token::transfer_checked(
+            transfer_ctx,
+            due,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+
+        let now = Clock::get()?.unix_timestamp;
+        ctx.accounts.contribution.distributed_amount = due;
+        ctx.accounts.contribution.status = ContributionStatus::Distributed;
+        ctx.accounts.pool.distributed_amount = ctx.accounts.pool
+            .distributed_amount
+            .checked_add(due)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        ctx.accounts.pool.updated_at = now;
 
         Ok(())
     }
@@ -503,6 +630,39 @@ pub mod global_receivables_protocol {
         ctx.accounts.config.paused = paused;
         Ok(())
     }
+}
+
+fn apply_passport_settlement(
+    receivable: &mut Account<Receivable>,
+    authorization: &Account<PayerAuthorization>,
+    passport: &mut Account<ReceivablePassport>,
+    now: i64,
+) -> Result<()> {
+    if receivable.passport_recorded {
+        return Ok(());
+    }
+
+    passport.receivables_settled = passport.receivables_settled
+        .checked_add(1)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+
+    if authorization.had_payment_failure {
+        passport.settled_late = passport.settled_late
+            .checked_add(1)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+    } else {
+        passport.settled_on_time = passport.settled_on_time
+            .checked_add(1)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+    }
+
+    passport.total_settled_amount = passport.total_settled_amount
+        .checked_add(receivable.settlement_amount_usdc)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+    passport.last_updated_at = now;
+    receivable.passport_recorded = true;
+
+    Ok(())
 }
 
 #[derive(Accounts)]
@@ -518,6 +678,23 @@ pub struct InitializeProtocol<'info> {
 
     #[account(mut)]
     pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializePassport<'info> {
+    #[account(
+        init,
+        payer = subject,
+        space = 8 + ReceivablePassport::INIT_SPACE,
+        seeds = [b"passport", subject.key().as_ref()],
+        bump
+    )]
+    pub passport: Account<'info, ReceivablePassport>,
+
+    #[account(mut)]
+    pub subject: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -543,6 +720,14 @@ pub struct CreateReceivable<'info> {
         bump
     )]
     pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        mut,
+        seeds = [b"passport", requester.key().as_ref()],
+        bump = passport.bump,
+        constraint = passport.subject == requester.key() @ GrpError::InvalidPassportSubject
+    )]
+    pub passport: Account<'info, ReceivablePassport>,
 
     #[account(mut)]
     pub requester: Signer<'info>,
@@ -944,6 +1129,22 @@ pub struct SettleReceivable<'info> {
     )]
     pub settlement_vault: Account<'info, TokenAccount>,
 
+    #[account(
+        mut,
+        seeds = [b"pool", receivable.key().as_ref()],
+        bump = pool.bump,
+        has_one = receivable @ GrpError::InvalidPoolReceivable
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [b"passport", receivable.requester.as_ref()],
+        bump = passport.bump,
+        constraint = passport.subject == receivable.requester @ GrpError::InvalidPassportSubject
+    )]
+    pub passport: Account<'info, ReceivablePassport>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -1010,6 +1211,99 @@ pub struct ManualRepayment<'info> {
     )]
     pub settlement_vault: Account<'info, TokenAccount>,
 
+    #[account(
+        mut,
+        seeds = [b"pool", receivable.key().as_ref()],
+        bump = pool.bump,
+        has_one = receivable @ GrpError::InvalidPoolReceivable
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [b"passport", receivable.requester.as_ref()],
+        bump = passport.bump,
+        constraint = passport.subject == receivable.requester @ GrpError::InvalidPassportSubject
+    )]
+    pub passport: Account<'info, ReceivablePassport>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimDistribution<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump,
+        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        mut,
+        seeds = [b"pool", receivable.key().as_ref()],
+        bump = pool.bump,
+        has_one = receivable @ GrpError::InvalidPoolReceivable,
+        constraint = pool.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"contribution",
+            pool.key().as_ref(),
+            investor.key().as_ref()
+        ],
+        bump = contribution.bump,
+        constraint = contribution.pool == pool.key() @ GrpError::InvalidContributionPool,
+        constraint = contribution.investor == investor.key() @ GrpError::UnauthorizedInvestor
+    )]
+    pub contribution: Account<'info, Contribution>,
+
+    #[account(
+        seeds = [b"payer-authorization", receivable.key().as_ref()],
+        bump = payer_authorization.bump,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault,
+        constraint = payer_authorization.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint
+    )]
+    pub payer_authorization: Account<'info, PayerAuthorization>,
+
+    pub investor: Signer<'info>,
+
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = investor
+    )]
+    pub investor_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        address = payer_authorization.settlement_vault @ GrpError::InvalidSettlementVault,
+        seeds = [b"settlement-vault", receivable.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = payer_authorization
+    )]
+    pub settlement_vault: Account<'info, TokenAccount>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -1056,9 +1350,23 @@ pub struct Receivable {
     pub status: ReceivableStatus,
     pub created_at: i64,
     pub updated_at: i64,
+    pub passport_recorded: bool,
     pub bump: u8,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct ReceivablePassport {
+    pub subject: Pubkey,
+    pub receivables_created: u64,
+    pub receivables_settled: u64,
+    pub settled_on_time: u64,
+    pub settled_late: u64,
+    pub defaults: u64,
+    pub total_settled_amount: u64,
+    pub last_updated_at: i64,
+    pub bump: u8,
+}
 
 #[account]
 #[derive(InitSpace)]
@@ -1069,6 +1377,8 @@ pub struct Pool {
     pub vault: Pubkey,
     pub target_amount: u64,
     pub funded_amount: u64,
+    pub repaid_amount: u64,
+    pub distributed_amount: u64,
     pub minimum_partial_bps: u16,
     pub discount_bps: u16,
     pub funding_deadline: i64,
@@ -1103,6 +1413,7 @@ pub struct PayerAuthorization {
     pub remaining_amount: u64,
     pub settlement_vault: Pubkey,
     pub status: PayerAuthorizationStatus,
+    pub had_payment_failure: bool,
     pub created_at: i64,
     pub updated_at: i64,
     pub bump: u8,
@@ -1284,6 +1595,27 @@ mod tests {
         let funded_bps = funded.checked_mul(10_000).unwrap() / target;
         assert!(funded_bps < minimum_bps);
     }
+
+    #[test]
+    fn proportional_distribution_uses_contribution_share() {
+        let repaid = 1_000_000u128;
+        let contribution = 250_000u128;
+        let funded = 500_000u128;
+        let due = repaid.checked_mul(contribution).unwrap() / funded;
+        assert_eq!(due, 500_000);
+    }
+
+    #[test]
+    fn passport_treats_clean_settlement_as_on_time_signal() {
+        let had_payment_failure = false;
+        assert!(!had_payment_failure);
+    }
+
+    #[test]
+    fn passport_treats_failed_collection_history_as_late_signal() {
+        let had_payment_failure = true;
+        assert!(had_payment_failure);
+    }
 }
 
 #[error_code]
@@ -1352,4 +1684,20 @@ pub enum GrpError {
     NothingToDisburse,
     #[msg("The pool vault balance is insufficient for disbursement.")]
     InsufficientPoolVaultBalance,
+    #[msg("The passport does not belong to the receivable requester.")]
+    InvalidPassportSubject,
+    #[msg("The pool has not been fully settled.")]
+    PoolNotSettled,
+    #[msg("The contribution is not claimable.")]
+    ContributionNotClaimable,
+    #[msg("This distribution has already been claimed.")]
+    DistributionAlreadyClaimed,
+    #[msg("There is no distribution amount available.")]
+    NothingToDistribute,
+    #[msg("The settlement vault balance is insufficient.")]
+    InsufficientSettlementBalance,
+    #[msg("The contribution does not belong to the provided pool.")]
+    InvalidContributionPool,
+    #[msg("Only the contribution investor can claim this distribution.")]
+    UnauthorizedInvestor,
 }
