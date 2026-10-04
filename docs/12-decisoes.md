@@ -394,3 +394,13 @@
 - **Recuperação:** após falha da cobrança automática, a solicitante é avisada e pode cobrar diretamente seu pagador. O pagador pode abastecer a carteira para novo retry automático ou fazer o pagamento manual.
 - **Idempotência:** cobrança automática e pagamento manual compartilham o mesmo saldo de obrigação. O programa rejeita cobrança acima do valor restante e impede pagamento duplicado após liquidação integral.
 - **Responsabilidade:** o protocolo garante integridade do estado e da liquidação; a cobrança comercial do devedor continua sendo responsabilidade da relação entre solicitante e pagador.
+
+
+## ADR-051 — atraso em D+1 e inadimplência em D+5
+
+- **Data:** 2026-10-04
+- **Status:** aprovada para GRP v0.1
+- **Regra:** no vencimento, o GRP pode tentar a cobrança automática. Se a obrigação continuar em aberto por 1 dia completo após o vencimento, o recebível passa para **OVERDUE**. Se continuar com saldo em aberto por 5 dias completos após o vencimento, passa para **DEFAULTED**.
+- **Operação:** ao entrar em OVERDUE, o backend da plataforma deve avisar a solicitante que antecipou o recebível para que ela cobre seu pagador. O pagador pode abastecer a carteira comprometida para um novo retry ou usar o pagamento manual.
+- **Passport:** DEFAULTED incrementa uma única vez o contador de defaults do Receivable Passport. Um atraso quitado antes de D+5 permanece como liquidação tardia, não como default.
+- **Responsabilidades:** a chain controla estado, prazo e integridade financeira; contato, lembretes e cobrança comercial são responsabilidades off-chain da aplicação.
