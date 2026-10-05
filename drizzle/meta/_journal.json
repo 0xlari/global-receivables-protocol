@@ -183,6 +183,13 @@
       "when": 1785081600000,
       "tag": "0025_secure_lrp_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791172800000,
+      "tag": "0026_grp_solana_auth",
+      "breakpoints": true
     }
   ]
 }
