@@ -55,7 +55,7 @@ describe("PostgreSQL financial constraints", () => {
       "select count(*)::int as count from drizzle.__drizzle_migrations",
     );
 
-    expect(result.rows[0]?.count).toBe(26);
+    expect(result.rows[0]?.count).toBe(27);
   });
 
   it("protects every LRP private, operational, and API-only projection table", async () => {
