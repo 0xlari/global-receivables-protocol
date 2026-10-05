@@ -15,8 +15,8 @@ export default function ConfirmationPage() {
       <section className="page-hero page-hero--compact">
         <div className="shell page-hero__inner">
           <span className="eyebrow">Confirmação do pagador</span>
-          <h1>Confira antes da plataforma avaliar.</h1>
-          <p>Você confirma ou contesta valor, data e pagamento em BTC. Quem aporta não participa desta validação.</p>
+          <h1>Confirme o recebível e autorize o pagamento.</h1>
+          <p>Confira valor, data e origem do pagamento. Se estiver correto, conecte a carteira Solana que fará a liquidação em USDC.</p>
         </div>
       </section>
       <section className="section confirmation-section"><div className="shell confirmation-shell"><ClientConfirmationForm /></div></section>
