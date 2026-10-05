@@ -8,6 +8,7 @@ import {
 import {
   TOKEN_PROGRAM_ID,
   createMint,
+  getAccount,
   getOrCreateAssociatedTokenAccount,
   mintTo,
 } from "@solana/spl-token";
@@ -135,7 +136,7 @@ describe("GRP on-chain happy path", () => {
       .rpc();
   });
 
-  it("creates, confirms, validates and funds a receivable using USDC", async () => {
+  it("runs the complete receivable -> funding -> repayment -> distribution -> passport flow", async () => {
     const payerAta = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       (provider.wallet as anchor.Wallet).payer,
@@ -148,6 +149,13 @@ describe("GRP on-chain happy path", () => {
       (provider.wallet as anchor.Wallet).payer,
       usdcMint,
       investor.publicKey,
+    );
+
+    const requesterAta = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as anchor.Wallet).payer,
+      usdcMint,
+      requester.publicKey,
     );
 
     await mintTo(
@@ -169,8 +177,11 @@ describe("GRP on-chain happy path", () => {
     );
 
     const now = Math.floor(Date.now() / 1000);
-    const dueAt = new anchor.BN(now + 7 * 86_400);
-    const fundingDeadline = new anchor.BN(now + 2 * 86_400);
+    // Keep the complete integration test fast while still exercising time-gated repayment.
+    const dueAtUnix = now + 20;
+    const fundingDeadlineUnix = now + 12;
+    const dueAt = new anchor.BN(dueAtUnix);
+    const fundingDeadline = new anchor.BN(fundingDeadlineUnix);
 
     await program.methods
       .createReceivable(
@@ -210,10 +221,15 @@ describe("GRP on-chain happy path", () => {
       .signers([payer])
       .rpc();
 
-    const payerAccount = await provider.connection.getTokenAccountBalance(
+    const payerAccount = await getAccount(
+      provider.connection,
       payerAta.address,
     );
-    expect(payerAccount.value.amount).to.equal("2000000");
+    expect(payerAccount.amount.toString()).to.equal("2000000");
+    expect(payerAccount.delegate?.toBase58()).to.equal(
+      payerAuthorizationPda.toBase58(),
+    );
+    expect(payerAccount.delegatedAmount.toString()).to.equal("1000000");
 
     await program.methods
       .recordValidation(
@@ -268,6 +284,80 @@ describe("GRP on-chain happy path", () => {
       .signers([investor])
       .rpc();
 
+
+    await program.methods
+      .disbursePool()
+      .accounts({
+        config: configPda,
+        receivable: receivablePda,
+        pool: poolPda,
+        requester: requester.publicKey,
+        usdcMint,
+        requesterTokenAccount: requesterAta.address,
+        poolVault: poolVaultPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([requester])
+      .rpc();
+
+    const requesterAfterDisbursement = await getAccount(
+      provider.connection,
+      requesterAta.address,
+    );
+    expect(requesterAfterDisbursement.amount.toString()).to.equal("900000");
+
+    const waitMs = Math.max(0, (dueAtUnix - Math.floor(Date.now() / 1000) + 1) * 1000);
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    await program.methods
+      .manualRepayment(new anchor.BN(1_000_000))
+      .accounts({
+        config: configPda,
+        receivable: receivablePda,
+        payerAuthorization: payerAuthorizationPda,
+        payer: payer.publicKey,
+        usdcMint,
+        payerTokenAccount: payerAta.address,
+        settlementVault: settlementVaultPda,
+        pool: poolPda,
+        passport: passportPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([payer])
+      .rpc();
+
+    const investorBeforeClaim = await getAccount(
+      provider.connection,
+      investorAta.address,
+    );
+
+    await program.methods
+      .claimDistribution()
+      .accounts({
+        config: configPda,
+        receivable: receivablePda,
+        pool: poolPda,
+        contribution: contributionPda,
+        payerAuthorization: payerAuthorizationPda,
+        investor: investor.publicKey,
+        usdcMint,
+        investorTokenAccount: investorAta.address,
+        settlementVault: settlementVaultPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([investor])
+      .rpc();
+
+    const investorAfterClaim = await getAccount(
+      provider.connection,
+      investorAta.address,
+    );
+    expect(
+      (investorAfterClaim.amount - investorBeforeClaim.amount).toString(),
+    ).to.equal("1000000");
+
     const receivable = await program.account.receivable.fetch(receivablePda);
     const pool = await program.account.pool.fetch(poolPda);
     const contribution = await program.account.contribution.fetch(contributionPda);
@@ -278,7 +368,23 @@ describe("GRP on-chain happy path", () => {
       payerAuthorizationPda.toBase58(),
     );
     expect(pool.fundedAmount.toString()).to.equal("900000");
+    expect(pool.repaidAmount.toString()).to.equal("1000000");
+    expect(pool.distributedAmount.toString()).to.equal("1000000");
     expect(contribution.amount.toString()).to.equal("900000");
+
+    const contributionAfterClaim = await program.account.contribution.fetch(
+      contributionPda,
+    );
+    expect(contributionAfterClaim.distributedAmount.toString()).to.equal(
+      "1000000",
+    );
+
     expect(passport.receivablesCreated.toString()).to.equal("1");
+    expect(passport.receivablesSettled.toString()).to.equal("1");
+    expect(passport.settledOnTime.toString()).to.equal("1");
+    expect(passport.settledLate.toString()).to.equal("0");
+    expect(passport.defaults.toString()).to.equal("0");
+    expect(passport.defaultsCured.toString()).to.equal("0");
+    expect(passport.totalSettledAmount.toString()).to.equal("1000000");
   });
 });
