@@ -226,7 +226,7 @@ export function ClientConfirmationForm() {
       }
 
       const connected = await provider.connect();
-      const payer = connected.publicKey;
+      const payer = new PublicKey(connected.publicKey.toBase58());
       const requester = new PublicKey(details.requesterSolanaWallet);
       const usdcMint = new PublicKey(details.grpUsdcMint);
       const commitment = await payerCommitmentHash({
