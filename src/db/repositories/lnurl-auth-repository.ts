@@ -140,6 +140,7 @@ export async function findActiveSessionProfile<THKT extends PgQueryResultHKT>(
     userId: appSessions.userId,
     profileId: users.reputationId,
     nostrPubkey: users.nostrPubkey,
+    solanaWallet: users.solanaWallet,
     expiresAt: appSessions.expiresAt,
   }).from(appSessions).innerJoin(users, eq(users.id, appSessions.userId)).where(and(
     eq(appSessions.tokenHash, sha256Hex(rawToken)),
