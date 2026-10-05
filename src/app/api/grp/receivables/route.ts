@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { clients } from "@/db/schema";
 import { paymentPurposes } from "@/domain/receivable";
-import { submitReceivable } from "@/db/repositories/receivable-repository";
+import { submitReceivableWithinTransaction } from "@/db/repositories/receivable-repository";
 import { assertJsonPayloadSize, assertSameOrigin, enforceRateLimit } from "@/lib/api-security";
 import { withSessionProfile } from "@/lib/app-session";
 
@@ -47,17 +47,23 @@ export async function POST(request: Request) {
         throw new Error("SOLANA_WALLET_REQUIRED");
       }
 
-      const now = new Date();
-      const clientId = randomUUID();
-      await db.insert(clients).values({
-        id: clientId,
-        countryCode: body.payerCountry,
-        protectedContactRef: `grp-private/${randomUUID()}`,
-      });
+      const originatorWallet = process.env.NEXT_PUBLIC_GRP_ORIGINATOR_WALLET?.trim();
+      if (!originatorWallet) {
+        throw new Error("GRP_ORIGINATOR_WALLET_NOT_CONFIGURED");
+      }
 
-      const result = await submitReceivable(db, {
-        requesterId: profile.userId,
-        clientId,
+      const now = new Date();
+      const result = await db.transaction(async (tx) => {
+        const clientId = randomUUID();
+        await tx.insert(clients).values({
+          id: clientId,
+          countryCode: body.payerCountry,
+          protectedContactRef: `grp-private/${randomUUID()}`,
+        });
+
+        return submitReceivableWithinTransaction(tx, {
+          requesterId: profile.userId,
+          clientId,
         paymentDescription: body.paymentDescription,
         paymentPurpose: body.paymentPurpose,
         nominalUsdCents: BigInt(body.nominalUsdCents),
@@ -73,7 +79,8 @@ export async function POST(request: Request) {
         },
         now,
         confirmationExpiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000),
-        confirmationBaseUrl: new URL(request.url).origin,
+          confirmationBaseUrl: new URL(request.url).origin,
+        });
       });
 
       return NextResponse.json({
@@ -83,7 +90,7 @@ export async function POST(request: Request) {
         evidenceHash: body.evidence.sha256,
         nominalUsdCents: body.nominalUsdCents,
         dueAt: new Date(`${body.dueDate}T12:00:00.000Z`).toISOString(),
-        originatorWallet: process.env.NEXT_PUBLIC_GRP_ORIGINATOR_WALLET ?? null,
+        originatorWallet,
       }, { status: 201, headers });
     });
   } catch (error) {
