@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   BadgeCheck,
   CircleAlert,
@@ -67,10 +67,9 @@ export function ClientConfirmationForm() {
   const [demoMode, setDemoMode] = useState(false);
   const [transactionSignature, setTransactionSignature] = useState("");
 
-  const usdcMinorAmount = useMemo(() => {
-    if (!details) return 0n;
-    return usdCentsToUsdcMinor(BigInt(details.nominalUsdCents));
-  }, [details]);
+  const usdcMinorAmount = details
+    ? usdCentsToUsdcMinor(BigInt(details.nominalUsdCents))
+    : 0n;
 
   useEffect(() => {
     const demoToken = new URLSearchParams(window.location.search).get("demo") ?? "";
