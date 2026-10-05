@@ -50,6 +50,9 @@ export async function POST(request: Request) {
           nominalUsdCents: details.nominalUsdCents.toString(),
           dueAt: details.dueAt.toISOString(),
           termsVersion: details.termsVersion,
+          receivableId: details.receivableId,
+          requesterSolanaWallet: details.requesterSolanaWallet,
+          grpUsdcMint: process.env.NEXT_PUBLIC_GRP_USDC_MINT ?? null,
         },
         { headers: privateHeaders },
       );
