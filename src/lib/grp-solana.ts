@@ -13,9 +13,20 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
-export const GRP_PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_GRP_PROGRAM_ID ??
-    "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY",
+const DEFAULT_GRP_PROGRAM_ID = "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY";
+
+function safePublicKey(value: string | undefined, fallback: string) {
+  const candidate = value?.trim();
+  try {
+    return new PublicKey(candidate || fallback);
+  } catch {
+    return new PublicKey(fallback);
+  }
+}
+
+export const GRP_PROGRAM_ID = safePublicKey(
+  process.env.NEXT_PUBLIC_GRP_PROGRAM_ID,
+  DEFAULT_GRP_PROGRAM_ID,
 );
 
 export const GRP_RPC_URL =
