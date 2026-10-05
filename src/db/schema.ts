@@ -209,6 +209,7 @@ export const users = pgTable("users", {
   countryCode: text("country_code").notNull(),
   status: userStatus("status").notNull().default("PENDING"),
   nostrPubkey: text("nostr_pubkey").unique(),
+  solanaWallet: text("solana_wallet").unique(),
   createdAt,
   updatedAt,
 });
@@ -287,6 +288,25 @@ export const nostrAuthChallenges = pgTable(
     index("nostr_auth_challenges_user_idx").on(table.userId),
     check("nostr_auth_challenges_pubkey_shape", sql`${table.pubkey} ~ '^[a-f0-9]{64}$'`),
     check("nostr_auth_challenges_nonce_shape", sql`${table.nonceHash} ~ '^[a-f0-9]{64}$'`),
+  ],
+);
+
+export const solanaAuthChallenges = pgTable(
+  "solana_auth_challenges",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => users.id, { onDelete: "restrict" }),
+    wallet: text("wallet").notNull(),
+    nonceHash: text("nonce_hash").notNull().unique(),
+    message: text("message").notNull(),
+    expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { mode: "date", withTimezone: true }),
+    createdAt,
+  },
+  (table) => [
+    index("solana_auth_challenges_wallet_idx").on(table.wallet),
+    index("solana_auth_challenges_user_idx").on(table.userId),
+    check("solana_auth_challenges_nonce_shape", sql`${table.nonceHash} ~ '^[a-f0-9]{64}$'`),
   ],
 );
 
