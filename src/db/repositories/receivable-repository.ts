@@ -136,6 +136,8 @@ async function findConfirmation<THKT extends PgQueryResultHKT>(db: Database<THKT
     .select({
       confirmation: clientConfirmations,
       version: receivableVersions,
+      receivable: receivables,
+      requesterSolanaWallet: users.solanaWallet,
     })
     .from(clientConfirmations)
     .innerJoin(
@@ -145,6 +147,8 @@ async function findConfirmation<THKT extends PgQueryResultHKT>(db: Database<THKT
         eq(receivableVersions.version, clientConfirmations.receivableVersion),
       ),
     )
+    .innerJoin(receivables, eq(receivables.id, clientConfirmations.receivableId))
+    .innerJoin(users, eq(users.id, receivables.requesterId))
     .where(eq(clientConfirmations.tokenHash, tokenHash))
     .limit(1);
   return row ?? invalidToken();
@@ -161,6 +165,8 @@ export async function inspectClientConfirmation<THKT extends PgQueryResultHKT>(
     nominalUsdCents: row.version.nominalAmount,
     dueAt: row.version.dueAt,
     termsVersion: RECEIVABLE_TERMS_VERSION,
+    receivableId: row.receivable.id,
+    requesterSolanaWallet: row.requesterSolanaWallet,
   };
 }
 
