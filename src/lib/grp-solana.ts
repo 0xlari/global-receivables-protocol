@@ -1,5 +1,6 @@
 "use client";
 
+import { Buffer } from "buffer";
 import {
   Connection,
   PublicKey,
