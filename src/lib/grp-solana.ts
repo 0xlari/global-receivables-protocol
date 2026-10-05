@@ -26,8 +26,8 @@ const RECORD_PAYER_CONFIRMATION_DISCRIMINATOR = Uint8Array.from([
 ]);
 
 export type BrowserSolanaProvider = {
-  publicKey?: PublicKey;
-  connect(): Promise<{ publicKey: PublicKey }>;
+  publicKey?: { toBase58(): string };
+  connect(): Promise<{ publicKey: { toBase58(): string } }>;
   signMessage?(message: Uint8Array, display?: "utf8"): Promise<{ signature: Uint8Array }>;
   signAndSendTransaction(transaction: Transaction): Promise<{ signature: string }>;
 };
