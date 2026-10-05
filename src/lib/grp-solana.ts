@@ -257,3 +257,77 @@ export function hexToBytes(hex: string) {
   if (!/^[a-f0-9]{64}$/i.test(hex)) throw new Error("Invalid SHA-256 value.");
   return Uint8Array.from(Buffer.from(hex, "hex"));
 }
+
+
+export async function getGrpProtocolStatus() {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const [config] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    GRP_PROGRAM_ID,
+  );
+  const account = await connection.getAccountInfo(config, "confirmed");
+  if (!account) {
+    return { initialized: false as const, config, connection };
+  }
+  if (account.data.length < 108) {
+    throw new Error("GRP ProtocolConfig account has an unexpected size.");
+  }
+  const authority = new PublicKey(account.data.subarray(8, 40));
+  const treasury = new PublicKey(account.data.subarray(40, 72));
+  const usdcMint = new PublicKey(account.data.subarray(72, 104));
+  const protocolVersion = account.data.readUInt16LE(104);
+  const paused = account.data[106] === 1;
+  return {
+    initialized: true as const,
+    config,
+    connection,
+    authority,
+    treasury,
+    usdcMint,
+    protocolVersion,
+    paused,
+  };
+}
+
+export async function buildInitializeProtocolTransaction(input: {
+  authority: PublicKey;
+  treasury: PublicKey;
+  usdcMint: PublicKey;
+}) {
+  const status = await getGrpProtocolStatus();
+  if (status.initialized) {
+    throw new Error("GRP_PROTOCOL_ALREADY_INITIALIZED");
+  }
+
+  const instructionData = Buffer.concat([
+    Buffer.from(await anchorDiscriminator("initialize_protocol")),
+    input.usdcMint.toBuffer(),
+    input.treasury.toBuffer(),
+  ]);
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: status.config, isSigner: false, isWritable: true },
+      { pubkey: input.authority, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: instructionData,
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await status.connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.authority,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection: status.connection,
+    transaction,
+    config: status.config,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
