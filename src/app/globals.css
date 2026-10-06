@@ -1941,3 +1941,37 @@ svg {
   .demo-fallback dl { grid-template-columns: 1fr; }
   .demo-fallback dl div + div { border-top: 1px solid var(--line); border-left: 0; }
 }
+
+.site-header--grp {
+  border-bottom-color: rgba(167, 139, 250, 0.12);
+  background: rgba(9, 9, 15, 0.92);
+}
+.site-header--grp .brand,
+.site-header--grp .desktop-nav > a,
+.site-header--grp .nav-action { color: #d9d5e7; }
+.site-header--grp .desktop-nav > a:hover,
+.site-header--grp .nav-action:hover { color: #ffffff; }
+.site-header--grp .brand__mark {
+  width: 2.55rem;
+  height: 2.55rem;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: .7rem;
+  background: linear-gradient(135deg, #8b5cf6, #5b3fd6 58%, #14f195);
+  box-shadow: 0 0 28px rgba(139,92,246,.28);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .7rem;
+  transform: none;
+}
+.site-header--grp .button--quiet {
+  border-color: rgba(167,139,250,.22);
+  color: #f6f4ff;
+}
+.brand--erh .brand__mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50% 50% 50% 16%;
+  background: var(--coral);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  transform: rotate(-7deg);
+}
