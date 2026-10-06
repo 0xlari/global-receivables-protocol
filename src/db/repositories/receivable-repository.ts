@@ -193,6 +193,99 @@ export async function inspectGrpClientConfirmation<THKT extends PgQueryResultHKT
   };
 }
 
+export async function rotateGrpConfirmationLink<THKT extends PgQueryResultHKT>(
+  db: Database<THKT>,
+  input: {
+    requesterId: string;
+    receivableId: string;
+    now: Date;
+    expiresAt: Date;
+    confirmationBaseUrl: string;
+  },
+) {
+  if (input.expiresAt <= input.now) {
+    throw new DomainError("Expiração do link inválida.", "INVALID_CONFIRMATION_EXPIRY");
+  }
+
+  return db.transaction(async (tx) => {
+    const [receivable] = await tx
+      .select()
+      .from(receivables)
+      .where(
+        and(
+          eq(receivables.id, input.receivableId),
+          eq(receivables.requesterId, input.requesterId),
+        ),
+      )
+      .for("update");
+
+    if (!receivable) {
+      throw new DomainError("Recebível não encontrado.", "RECEIVABLE_NOT_FOUND");
+    }
+
+    if (
+      receivable.status !== "AWAITING_CLIENT" &&
+      receivable.status !== "UNDER_VALIDATION"
+    ) {
+      throw new DomainError(
+        "Este recebível não aceita um novo link de confirmação.",
+        "CONFIRMATION_LINK_NOT_AVAILABLE",
+      );
+    }
+
+    const [confirmation] = await tx
+      .select()
+      .from(clientConfirmations)
+      .where(
+        and(
+          eq(clientConfirmations.receivableId, receivable.id),
+          eq(clientConfirmations.receivableVersion, receivable.version),
+        ),
+      )
+      .for("update");
+
+    if (
+      !confirmation ||
+      (confirmation.status !== "PENDING" && confirmation.status !== "ACCEPTED")
+    ) {
+      throw new DomainError(
+        "A confirmação deste recebível não pode ser reaberta.",
+        "CONFIRMATION_LINK_NOT_AVAILABLE",
+      );
+    }
+
+    const rawToken = generateConfirmationToken();
+    const tokenHash = tokenHashOrInvalid(rawToken);
+
+    await tx
+      .update(clientConfirmations)
+      .set({
+        tokenHash,
+        expiresAt: input.expiresAt,
+      })
+      .where(eq(clientConfirmations.id, confirmation.id));
+
+    await tx.insert(auditEvents).values({
+      id: randomUUID(),
+      actorId: input.requesterId,
+      action: "GRP_CONFIRMATION_LINK_ROTATED",
+      targetType: "RECEIVABLE",
+      targetId: receivable.id,
+      correlationId: randomUUID(),
+      after: {
+        confirmationStatus: confirmation.status,
+        expiresAt: input.expiresAt.toISOString(),
+      },
+    });
+
+    return {
+      confirmationUrl: buildConfirmationUrl(input.confirmationBaseUrl, rawToken),
+      expiresAt: input.expiresAt,
+      confirmationStatus: confirmation.status,
+    };
+  });
+}
+
 export async function reviseReceivable<THKT extends PgQueryResultHKT>(
   db: Database<THKT>,
   input: {
