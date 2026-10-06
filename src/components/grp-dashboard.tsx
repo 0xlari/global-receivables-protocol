@@ -110,7 +110,7 @@ export function GrpDashboard() {
     }));
     try {
       const response = await fetch(
-        \`/api/grp/receivables/\${receivableId}/confirmation-link\`,
+        `/api/grp/receivables/${receivableId}/confirmation-link`,
         { method: "POST" },
       );
       const body = await response.json() as { confirmationUrl?: string; error?: string };
