@@ -29,6 +29,8 @@ type Details = {
   receivableId?: string;
   requesterSolanaWallet?: string | null;
   grpUsdcMint?: string | null;
+  confirmationStatus?: "PENDING" | "ACCEPTED";
+  confirmationExpiresAt?: string;
 };
 
 type Step = "confirm" | "authorize" | "done";
@@ -74,7 +76,6 @@ export function ClientConfirmationForm() {
   useEffect(() => {
     const demoToken = new URLSearchParams(window.location.search).get("demo") ?? "";
     const rawToken = demoToken || window.location.hash.slice(1);
-    if (!demoToken) window.history.replaceState(null, "", window.location.pathname);
 
     void (async () => {
       await Promise.resolve();
@@ -107,20 +108,33 @@ export function ClientConfirmationForm() {
       }
 
       try {
-        const response = await fetch("/api/client-confirmations", {
+        const response = await fetch("/api/grp/client-confirmations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "inspect", token: rawToken }),
           cache: "no-store",
         });
-        if (!response.ok) throw new Error();
+        const data = (await response.json()) as Details & { error?: string; code?: string };
+        if (!response.ok) {
+          throw new Error(
+            data.code === "INVALID_OR_EXPIRED_CONFIRMATION"
+              ? "Este link é inválido, expirou ou já foi utilizado."
+              : data.error ?? "Não foi possível validar o link.",
+          );
+        }
 
-        const data = (await response.json()) as Details;
         setDetails(data);
         setAmount(inputAmount(data.nominalUsdCents));
         setDueDate(data.dueAt.slice(0, 10));
+        if (data.confirmationStatus === "ACCEPTED") {
+          setStep("authorize");
+        }
+        if (!demoToken) {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
         setState("ready");
-      } catch {
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Não foi possível validar o link.");
         setState("error");
       }
     })();
@@ -151,14 +165,13 @@ export function ClientConfirmationForm() {
         return;
       }
 
-      const response = await fetch("/api/client-confirmations", {
+      const response = await fetch("/api/grp/client-confirmations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "respond",
           token,
-          // Compatibilidade temporária com o schema legado enquanto BTC/NWC é retirado.
-          acceptsBtc: acceptsUsdc,
+          acceptsUsdc,
           confirmsDescription,
           amountUsd: amount,
           dueDate,
@@ -170,6 +183,7 @@ export function ClientConfirmationForm() {
         receivableId?: string;
         outcome?: string;
         error?: string;
+        code?: string;
       };
 
       if (!response.ok || !data.outcome) {
@@ -272,8 +286,8 @@ export function ClientConfirmationForm() {
     return (
       <div className="confirmation-state confirmation-state--error">
         <CircleAlert />
-        <strong>Este link é inválido, expirou ou já foi usado.</strong>
-        <span>Peça à solicitante um novo link.</span>
+        <strong>Não foi possível abrir este recebível.</strong>
+        <span>{message || "Este link é inválido, expirou ou já foi utilizado."}</span>
       </div>
     );
   }
