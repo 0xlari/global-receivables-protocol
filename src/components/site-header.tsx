@@ -7,10 +7,10 @@ import { SessionAwareNavigation } from "@/components/session-aware-header";
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const isHome = pathname === "/";
+  const isImmersive = pathname === "/" || pathname === "/como-funciona";
   const isErh = pathname.startsWith("/elas-recebem-hoje");
 
-  if (isHome) {
+  if (isImmersive) {
     return (
       <header className="site-header site-header--grp site-header--immersive">
         <div className="shell site-header__inner">
