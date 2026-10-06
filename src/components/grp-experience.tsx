@@ -216,18 +216,41 @@ export function GrpExperience() {
         </div>
       </section>
 
-      <section className={styles.erhBreak}>
-        <div className={styles.erhCopy}>
-          <span>BUILT ON GRP</span>
-          <h2>One protocol.<br />A product for a specific market.</h2>
-          <p>Elas Recebem Hoje is the first Brazilian vertical powered by GRP.</p>
-          <Link href="/elas-recebem-hoje">Open Elas Recebem Hoje <ArrowRight size={17} /></Link>
+      <section className={styles.verticalScene}>
+        <div className={styles.verticalSignal}>
+          <span>BUILT ON GRP / FIRST VERTICAL</span>
+          <strong>01</strong>
         </div>
-        <div className={styles.erhCard}>
-          <div className={styles.erhMark}>E</div>
-          <small>POWERED BY GRP</small>
-          <h3>Elas Recebem Hoje</h3>
-          <p>Antecipação de recebíveis internacionais para profissionais no Brasil.</p>
+
+        <div className={styles.verticalCopy}>
+          <h2>One protocol.<br />Different markets.</h2>
+          <p>
+            Elas Recebem Hoje is the first application built on GRP — a Brazilian
+            vertical focused on professionals receiving from global clients.
+          </p>
+          <Link href="/elas-recebem-hoje" className={styles.verticalAction}>
+            Open first vertical <ArrowRight size={17} />
+          </Link>
+        </div>
+
+        <div className={styles.verticalNode}>
+          <div className={styles.verticalNodeTop}>
+            <span>APPLICATION NODE</span>
+            <span>BR · ACTIVE</span>
+          </div>
+          <div className={styles.verticalNodeBody}>
+            <div className={styles.verticalNodeMark}>ERH</div>
+            <div>
+              <small>POWERED BY GRP</small>
+              <h3>Elas Recebem Hoje</h3>
+              <p>Brazilian receivables application</p>
+            </div>
+          </div>
+          <div className={styles.verticalNodeState}>
+            <span>market</span><strong>Brazil</strong>
+            <span>settlement</span><strong>USDC</strong>
+            <span>protocol</span><strong>GRP v1</strong>
+          </div>
         </div>
       </section>
 
