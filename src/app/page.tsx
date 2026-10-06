@@ -1,245 +1,180 @@
-import {
-  ArrowRight,
-  BadgeCheck,
-  CircleDollarSign,
-  FileCheck2,
-  Globe2,
-  History,
-  Landmark,
-  Network,
-  ShieldCheck,
-  WalletCards,
-} from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, BadgeCheck, CircleDollarSign, History } from "lucide-react";
+import styles from "./grp.module.css";
 
-import { ButtonLink } from "@/components/button-link";
-
-const steps = [
-  {
-    number: "01",
-    title: "Create",
-    body: "Register a receivable while keeping sensitive documents and personal data off-chain.",
-  },
-  {
-    number: "02",
-    title: "Confirm",
-    body: "The payer confirms the obligation with the wallet that will settle it.",
-  },
-  {
-    number: "03",
-    title: "Validate",
-    body: "An originator verifies the receivable before it becomes eligible for financing.",
-  },
-  {
-    number: "04",
-    title: "Fund",
-    body: "Investors provide USDC liquidity through a receivable-specific pool.",
-  },
-  {
-    number: "05",
-    title: "Settle",
-    body: "The payer settles in USDC through the authorization attached to the receivable.",
-  },
-  {
-    number: "06",
-    title: "Build reputation",
-    body: "Settlement outcomes update a portable Receivable Passport on Solana.",
-  },
+const flow = [
+  ["01", "Create", "Register a receivable while keeping private evidence off-chain."],
+  ["02", "Confirm", "Bind the obligation to the payer wallet that will settle it."],
+  ["03", "Validate", "Verify evidence, eligibility and duplication before financing."],
+  ["04", "Fund", "Open a receivable-specific pool and provide USDC liquidity."],
+  ["05", "Settle", "Collect or manually settle the obligation in USDC at maturity."],
+  ["06", "Build reputation", "Write the outcome into a portable Receivable Passport."],
 ];
 
 export default function Home() {
   return (
-    <>
-      <section className="hero">
-        <div className="shell hero__grid">
-          <div className="hero__copy">
-            <div className="eyebrow">
-              <Network aria-hidden="true" size={16} />
-              Global Receivables Protocol
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <div className={`${styles.shell} ${styles.heroGrid}`}>
+          <div>
+            <div className={styles.kicker}>
+              <span className={styles.liveDot} />
+              Global Receivables Protocol · Solana Devnet
             </div>
-            <h1>
-              Turn future payments into <em>programmable, financeable receivables.</em>
+            <h1 className={styles.title}>
+              Turn future payments into
+              <span className={styles.titleAccent}> programmable receivables.</span>
             </h1>
-            <p className="hero__lead">
-              Create, validate, finance and settle global receivables in USDC on Solana
-              while building a portable payment history.
+            <p className={styles.lead}>
+              GRP is infrastructure for creating, confirming, financing and settling
+              global receivables in USDC while building portable payment history.
             </p>
-            <div className="hero__actions">
-              <ButtonLink href="/entrar?next=/recebivel">
-                Create a receivable <ArrowRight aria-hidden="true" size={18} />
-              </ButtonLink>
-              <ButtonLink href="#how-it-works" variant="secondary">
-                Explore the protocol
-              </ButtonLink>
+            <div className={styles.actions}>
+              <Link className={styles.primary} href="/entrar?next=/recebivel">
+                Create receivable <ArrowRight size={18} />
+              </Link>
+              <Link className={styles.secondary} href="/como-funciona">
+                Explore protocol
+              </Link>
             </div>
-            <ul className="trust-list" aria-label="Protocol properties">
-              <li><BadgeCheck aria-hidden="true" size={17} /> Verifiable receivables</li>
-              <li><CircleDollarSign aria-hidden="true" size={17} /> USDC settlement</li>
-              <li><History aria-hidden="true" size={17} /> Portable payment history</li>
-            </ul>
+            <div className={styles.meta}>
+              <span><BadgeCheck size={15} /> Verifiable obligations</span>
+              <span><CircleDollarSign size={15} /> USDC settlement</span>
+              <span><History size={15} /> Receivable Passport</span>
+            </div>
           </div>
 
-          <div className="hero-board" aria-label="Global receivable example">
-            <div className="hero-board__halo" aria-hidden="true" />
-            <div className="receipt-card">
-              <div className="receipt-card__head">
-                <span className="tag tag--success">
-                  <FileCheck2 aria-hidden="true" size={15} /> Verified receivable
-                </span>
-                <span className="receipt-card__id">GRP-001</span>
+          <div className={styles.protocolPanel}>
+            <div className={styles.panelCard}>
+              <div className={styles.panelTop}>
+                <span className={styles.verified}>● VERIFIED RECEIVABLE</span>
+                <span className={styles.receivableId}>GRP-001</span>
               </div>
-              <p>Global service payment</p>
-              <strong>US$ 2,000</strong>
-              <div className="receipt-card__rows">
-                <span>
-                  <small>Advance</small>
-                  1,900 USDC
-                </span>
-                <span>
-                  <small>Settlement</small>
-                  Due in 30 days
-                </span>
+              <p className={styles.amountLabel}>Settlement amount</p>
+              <p className={styles.amount}>2,000 USDC</p>
+              <div className={styles.states}>
+                <div className={styles.state}><small>Payer</small><strong>Confirmed ✓</strong></div>
+                <div className={styles.state}><small>Originator</small><strong>Validated ✓</strong></div>
+                <div className={styles.state}><small>Funding</small><strong>72% funded</strong></div>
+                <div className={styles.state}><small>Settlement</small><strong>Due in 30 days</strong></div>
               </div>
             </div>
-            <div className="floating-note floating-note--client">
-              <WalletCards aria-hidden="true" size={18} />
-              <span>
-                Payer confirmation
-                <strong>Wallet-bound obligation</strong>
-              </span>
-            </div>
-            <div className="floating-note floating-note--wallet">
-              <Landmark aria-hidden="true" size={18} />
-              <span>
-                Settlement rail
-                <strong>USDC on Solana</strong>
-              </span>
+            <div className={styles.progressWrap}>
+              <div className={styles.progressHead}>
+                <span>Pool liquidity</span>
+                <span>1,440 / 2,000 USDC</span>
+              </div>
+              <div className={styles.progress}><span /></div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="signal-strip" aria-label="Protocol summary">
-        <div className="shell signal-strip__inner">
-          <span>Global receivables</span>
-          <span>Payer confirmed</span>
+      <section className={styles.strip}>
+        <div className={`${styles.shell} ${styles.stripInner}`}>
+          <span>Wallet-bound confirmation</span>
           <span>USDC liquidity</span>
-          <span>Portable history</span>
+          <span>Canonical Solana state</span>
+          <span>Portable reputation</span>
         </div>
       </section>
 
-      <section className="section section--steps" id="how-it-works">
-        <div className="shell">
-          <div className="section-heading">
+      <section className={styles.section}>
+        <div className={styles.shell}>
+          <div className={styles.sectionHeader}>
             <div>
-              <span className="kicker">How GRP works</span>
-              <h2>From future payment to verifiable financial history.</h2>
+              <span className={styles.kicker}>Protocol lifecycle</span>
+              <h2>One financial state from obligation to settlement.</h2>
             </div>
             <p>
-              GRP coordinates the receivable lifecycle while keeping sensitive commercial
-              data private and the canonical financial state on Solana.
+              GRP separates sensitive commercial data from the public financial state,
+              so the receivable can be verified and financed without putting private
+              documents on-chain.
             </p>
           </div>
-          <div className="steps-grid">
-            {steps.slice(0, 4).map((step) => (
-              <article className="step-card" key={step.number}>
-                <span>{step.number}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </article>
-            ))}
-          </div>
-          <div className="steps-grid">
-            {steps.slice(4).map((step) => (
-              <article className="step-card" key={step.number}>
-                <span>{step.number}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
+          <div className={styles.flowGrid}>
+            {flow.map(([index, title, body]) => (
+              <article className={styles.flowCard} key={index}>
+                <span className={styles.flowIndex}>{index}</span>
+                <h3>{title}</h3>
+                <p>{body}</p>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="section section--reputation">
-        <div className="shell reputation-card">
+      <section className={`${styles.section} ${styles.passport}`}>
+        <div className={`${styles.shell} ${styles.passportGrid}`}>
           <div>
-            <span className="kicker kicker--light">Receivable Passport</span>
-            <h2>A financial history that travels with you.</h2>
-            <p>
-              Every settled receivable adds verifiable performance data to the Receivable
-              Passport, including on-time payments, late settlements, defaults and cured defaults.
+            <span className={styles.kicker}>Receivable Passport</span>
+            <h2>A financial history that moves with the requester.</h2>
+            <p className={styles.lead}>
+              Every settlement updates an on-chain history of created receivables,
+              on-time payments, late outcomes, defaults and cured defaults.
             </p>
           </div>
-          <div className="reputation-signals">
-            <span><BadgeCheck aria-hidden="true" /> Settled on time</span>
-            <span><History aria-hidden="true" /> Late and cured outcomes</span>
-            <span><Globe2 aria-hidden="true" /> Portable across GRP applications</span>
+          <div className={styles.passportStats}>
+            <div className={styles.passportStat}><small>Receivables settled</small><strong>12</strong></div>
+            <div className={styles.passportStat}><small>On-time rate</small><strong>91.7%</strong></div>
+            <div className={styles.passportStat}><small>Defaults cured</small><strong>1</strong></div>
+            <div className={styles.passportStat}><small>Total settled</small><strong>48,200 USDC</strong></div>
           </div>
         </div>
       </section>
 
-      <section className="section section--pools">
-        <div className="shell pools-layout">
-          <div className="pools-copy">
-            <span className="kicker">Why Solana</span>
-            <h2>Fast settlement, global USDC liquidity, composable financial state.</h2>
+      <section className={styles.vertical}>
+        <div className={`${styles.shell} ${styles.verticalGrid}`}>
+          <div>
+            <span className={styles.kicker} style={{ color: "#c63d28" }}>Built on GRP</span>
+            <h2>Infrastructure first. Real application from day one.</h2>
             <p>
-              Solana is the canonical financial layer of GRP. Sensitive documents, identity
-              information and commercial evidence stay private off-chain.
+              Elas Recebem Hoje is the first Brazilian vertical powered by GRP,
+              focused on professionals receiving income from global clients.
             </p>
           </div>
-          <div className="reputation-signals">
-            <span><CircleDollarSign aria-hidden="true" /> USDC-native settlement</span>
-            <span><Network aria-hidden="true" /> Programmable receivable lifecycle</span>
-            <span><ShieldCheck aria-hidden="true" /> Private data stays off-chain</span>
+          <div className={styles.verticalCard}>
+            <span className={styles.verticalMark}>E</span>
+            <h3>Elas Recebem Hoje</h3>
+            <p>Antecipação de recebíveis internacionais para profissionais no Brasil.</p>
+            <Link className={styles.verticalLink} href="/elas-recebem-hoje">
+              Open the Brazilian vertical <ArrowRight size={17} />
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="shell section-heading">
+      <section className={styles.live}>
+        <div className={`${styles.shell} ${styles.liveGrid}`}>
           <div>
-            <span className="kicker">Built on GRP</span>
-            <h2>Elas Recebem Hoje is the first vertical powered by the protocol.</h2>
-          </div>
-          <p>
-            The Brazilian application focuses on professionals receiving income from global
-            clients, proving that GRP can power real receivable products for specific markets.
-          </p>
-        </div>
-      </section>
-
-      <section className="section section--reputation">
-        <div className="shell reputation-card">
-          <div>
-            <span className="kicker kicker--light">Live protocol</span>
-            <h2>GRP is live on Solana Devnet.</h2>
+            <span className={styles.kicker}><span className={styles.liveDot} /> Live protocol</span>
+            <h2>Deployed and active on Solana Devnet.</h2>
             <p>
-              The deployed program is already configured for USDC settlement and the protocol
-              lifecycle is being tested end to end through the application.
+              The protocol config is initialized and the application is wired to test
+              the receivable lifecycle against the deployed GRP program.
             </p>
           </div>
-          <div className="reputation-signals">
-            <span><Network aria-hidden="true" /> Solana Devnet</span>
-            <span><BadgeCheck aria-hidden="true" /> Protocol version 1</span>
-            <span><CircleDollarSign aria-hidden="true" /> USDC settlement</span>
+          <div className={styles.liveFacts}>
+            <div className={styles.liveFact}><span>Network</span><strong>Solana Devnet</strong></div>
+            <div className={styles.liveFact}><span>Settlement asset</span><strong>USDC</strong></div>
+            <div className={styles.liveFact}><span>Program status</span><strong>Active</strong></div>
+            <div className={styles.liveFact}><span>Protocol version</span><strong>v1</strong></div>
           </div>
         </div>
       </section>
 
-      <section className="section final-cta">
-        <div className="shell final-cta__inner">
-          <span className="kicker">Global Receivables Protocol</span>
-          <h2>Create your first global receivable.</h2>
-          <p>
-            Register a future payment, get payer confirmation and turn it into a financeable
-            on-chain receivable.
-          </p>
-          <ButtonLink href="/entrar?next=/recebivel">
-            Create receivable <ArrowRight aria-hidden="true" size={18} />
-          </ButtonLink>
+      <section className={styles.final}>
+        <div className={`${styles.shell} ${styles.finalInner}`}>
+          <span className={styles.kicker}>Global Receivables Protocol</span>
+          <h2>Create a receivable. Make it verifiable. Make it financeable.</h2>
+          <p>Start the first live flow through GRP on Solana Devnet.</p>
+          <div className={styles.actions} style={{ justifyContent: "center" }}>
+            <Link className={styles.primary} href="/entrar?next=/recebivel">
+              Create receivable <ArrowRight size={18} />
+            </Link>
+          </div>
         </div>
       </section>
-    </>
+    </div>
   );
 }
