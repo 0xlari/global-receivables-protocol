@@ -129,9 +129,6 @@ export function ClientConfirmationForm() {
         if (data.confirmationStatus === "ACCEPTED") {
           setStep("authorize");
         }
-        if (!demoToken) {
-          window.history.replaceState(null, "", window.location.pathname);
-        }
         setState("ready");
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Não foi possível validar o link.");
