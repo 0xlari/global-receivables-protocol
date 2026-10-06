@@ -23,7 +23,8 @@
     "test:e2e": "playwright test",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "test:anchor": "anchor test",
-    "db:ensure-grp-auth": "tsx scripts/ensure-grp-auth-schema.ts"
+    "db:ensure-grp-auth": "tsx scripts/ensure-grp-auth-schema.ts",
+    "db:push": "drizzle-kit push"
   },
   "dependencies": {
     "@breeztech/breez-sdk-liquid": "0.12.4",
