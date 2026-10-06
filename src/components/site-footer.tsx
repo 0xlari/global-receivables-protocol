@@ -1,18 +1,42 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Brand } from "@/components/brand";
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  const isErh = pathname.startsWith("/elas-recebem-hoje");
+
+  if (isErh) {
+    return (
+      <footer className="site-footer site-footer--erh">
+        <div className="shell site-footer__inner">
+          <div>
+            <Brand variant="erh" />
+            <p>Vertical brasileira powered by Global Receivables Protocol.</p>
+          </div>
+          <div className="site-footer__links" aria-label="Links do rodapé">
+            <Link href="/">Conhecer o GRP</Link>
+            <Link href="/recebivel">Criar recebível</Link>
+            <Link href="/pools">Pools</Link>
+          </div>
+        </div>
+      </footer>
+    );
+  }
+
   return (
-    <footer className="site-footer">
+    <footer className="site-footer site-footer--grp">
       <div className="shell site-footer__inner">
         <div>
           <Brand />
           <p>Programmable infrastructure for global receivables.</p>
         </div>
         <div className="site-footer__links" aria-label="Footer links">
-          <Link href="/como-funciona">How it works</Link>
-          <Link href="/recebivel">Create receivable</Link>
-          <Link href="/pools">Pools</Link>
+          <Link href="/como-funciona">Protocol</Link>
+          <Link href="/elas-recebem-hoje">Built on GRP</Link>
+          <Link href="/entrar?next=/recebivel">Launch app</Link>
         </div>
       </div>
     </footer>
