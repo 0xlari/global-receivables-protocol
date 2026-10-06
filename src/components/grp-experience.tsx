@@ -134,10 +134,10 @@ export function GrpExperience() {
             settled in USDC on Solana.
           </p>
           <div className={styles.openingActions}>
-            <Link href="/entrar?next=/recebivel" className={styles.signalButton}>
-              Create a receivable <ArrowRight size={18} />
+            <Link href="/markets" className={styles.signalButton}>
+              Explore markets <ArrowRight size={18} />
             </Link>
-            <a href="#world" className={styles.ghostButton}>Explore the protocol</a>
+            <Link href="/como-funciona" className={styles.ghostButton}>Explore the protocol</Link>
           </div>
         </div>
 
@@ -228,9 +228,14 @@ export function GrpExperience() {
             Elas Recebem Hoje is the first application built on GRP — a Brazilian
             vertical focused on professionals receiving from global clients.
           </p>
-          <Link href="/elas-recebem-hoje" className={styles.verticalAction}>
-            Open first vertical <ArrowRight size={17} />
-          </Link>
+          <div className={styles.marketActions}>
+            <Link href="/markets" className={styles.verticalAction}>
+              Explore markets <ArrowRight size={17} />
+            </Link>
+            <Link href="/build-on-grp" className={styles.verticalAction}>
+              Build a market <ArrowRight size={17} />
+            </Link>
+          </div>
         </div>
 
         <div className={styles.verticalNode}>
@@ -270,8 +275,8 @@ export function GrpExperience() {
       <section className={styles.close}>
         <span>GLOBAL RECEIVABLES PROTOCOL</span>
         <h2>Make future payments<br />move like money.</h2>
-        <Link href="/entrar?next=/recebivel" className={styles.signalButton}>
-          Create a receivable <ArrowRight size={18} />
+        <Link href="/markets" className={styles.signalButton}>
+          Launch a market experience <ArrowRight size={18} />
         </Link>
         <div className={styles.closeMeta}>
           <span><BadgeCheck size={14} /> verifiable obligations</span>
