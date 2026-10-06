@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { clients } from "@/db/schema";
+import { clientConfirmations, clients, receivables, receivableVersions } from "@/db/schema";
 import { paymentPurposes } from "@/domain/receivable";
 import { submitReceivableWithinTransaction } from "@/db/repositories/receivable-repository";
 import { assertJsonPayloadSize, assertSameOrigin, enforceRateLimit } from "@/lib/api-security";
@@ -33,6 +34,69 @@ function statusFor(error: unknown) {
   if (message === "APP_SESSION_REQUIRED") return 401;
   if (message === "ACTIVE_RECEIVABLE_ALREADY_EXISTS") return 409;
   return 400;
+}
+
+export async function GET(request: Request) {
+  try {
+    return await withSessionProfile(request, async ({ profile, db }) => {
+      enforceRateLimit(`grp:receivable:read:${profile.userId}`, 60);
+
+      const rows = await db
+        .select({
+          id: receivables.id,
+          status: receivables.status,
+          nominalUsdCents: receivables.nominalAmount,
+          dueAt: receivables.dueAt,
+          createdAt: receivables.createdAt,
+          updatedAt: receivables.updatedAt,
+          description: receivableVersions.paymentDescription,
+          purpose: receivableVersions.paymentPurpose,
+          confirmationStatus: clientConfirmations.status,
+          confirmationExpiresAt: clientConfirmations.expiresAt,
+        })
+        .from(receivables)
+        .innerJoin(
+          receivableVersions,
+          and(
+            eq(receivableVersions.receivableId, receivables.id),
+            eq(receivableVersions.version, receivables.version),
+          ),
+        )
+        .leftJoin(
+          clientConfirmations,
+          and(
+            eq(clientConfirmations.receivableId, receivables.id),
+            eq(clientConfirmations.receivableVersion, receivables.version),
+          ),
+        )
+        .where(eq(receivables.requesterId, profile.userId))
+        .orderBy(desc(receivables.createdAt));
+
+      return NextResponse.json(
+        {
+          receivables: rows.map((row) => ({
+            id: row.id,
+            status: row.status,
+            description: row.description,
+            purpose: row.purpose,
+            nominalUsdCents: row.nominalUsdCents.toString(),
+            dueAt: row.dueAt.toISOString(),
+            createdAt: row.createdAt.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
+            confirmationStatus: row.confirmationStatus,
+            confirmationExpiresAt: row.confirmationExpiresAt?.toISOString() ?? null,
+          })),
+        },
+        { headers },
+      );
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "GRP_RECEIVABLE_READ_FAILED";
+    return NextResponse.json(
+      { error: message },
+      { status: statusFor(error), headers },
+    );
+  }
 }
 
 export async function POST(request: Request) {
