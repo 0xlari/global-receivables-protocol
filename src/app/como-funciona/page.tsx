@@ -1,42 +1,52 @@
 import type { Metadata } from "next";
-import { ArrowRight, Bitcoin, CheckCircle2, CircleDollarSign, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  CircleDollarSign,
+  History,
+  Network,
+  ShieldCheck,
+  WalletCards,
+} from "lucide-react";
+
 import { ButtonLink } from "@/components/button-link";
 
 export const metadata: Metadata = {
-  title: "Como funciona",
-  description: "Conheça o fluxo do recebível até a liquidação em Bitcoin.",
+  title: "How it works",
+  description:
+    "See how GRP creates, confirms, validates, finances and settles global receivables in USDC on Solana.",
 };
 
 const stages = [
   {
     icon: CircleDollarSign,
-    title: "1. Cadastre o recebível",
-    body: "Informe a origem do pagamento, a descrição, o valor em USD, o pagador e o vencimento.",
+    title: "1. Create the receivable",
+    body: "Register the payment source, amount, payer and due date. Private evidence stays off-chain while its commitment can be verified on Solana.",
   },
   {
-    icon: CheckCircle2,
-    title: "2. Peça a confirmação",
-    body: "O pagador confere os dados e assina com a carteira. A assinatura confirma o compromisso, mas não movimenta sats.",
+    icon: WalletCards,
+    title: "2. Get payer confirmation",
+    body: "The payer reviews the obligation and signs with the wallet that will settle it in USDC.",
   },
   {
     icon: ShieldCheck,
-    title: "3. Passe pela validação",
-    body: "A plataforma analisa identidade, evidências, limite, duplicidade e histórico com regras explicáveis.",
+    title: "3. Validate the receivable",
+    body: "An originator checks evidence, duplication, eligibility and the rules required before financing.",
   },
   {
-    icon: Bitcoin,
-    title: "4. Abra a pool BTC",
-    body: "Aportadoras financiam contratos DLC. Os BTC ficam presos no contrato, nunca na carteira da plataforma.",
-  },
-  {
-    icon: Bitcoin,
-    title: "5. Receba em Bitcoin",
-    body: "Quando a pool fecha ou o parcial é aceito, o oráculo atesta o evento e os contratos liberam o BTC diretamente.",
+    icon: Network,
+    title: "4. Open the funding pool",
+    body: "Once approved, the receivable can open a pool where investors provide USDC liquidity.",
   },
   {
     icon: CircleDollarSign,
-    title: "6. Quite e distribua",
-    body: "No vencimento, o pagador paga uma invoice. A plataforma recebe apenas durante a redistribuição automática às aportadoras.",
+    title: "5. Settle in USDC",
+    body: "At maturity, the payer settles the remaining obligation through the wallet authorization bound to that receivable.",
+  },
+  {
+    icon: History,
+    title: "6. Update the Passport",
+    body: "The outcome becomes part of the Receivable Passport, preserving on-time, late and cured-default history.",
   },
 ];
 
@@ -45,14 +55,15 @@ export default function HowItWorksPage() {
     <div className="inner-page">
       <section className="page-hero">
         <div className="shell page-hero__inner">
-          <span className="eyebrow">Fluxo simples e verificável</span>
-          <h1>Do trabalho entregue ao Bitcoin na carteira.</h1>
+          <span className="eyebrow">Protocol flow</span>
+          <h1>From future payment to programmable liquidity.</h1>
           <p>
-            A plataforma não recebe dólares. O valor em USD registra o contrato; o
-            pagador adquire BTC fora da plataforma e paga uma invoice Lightning.
+            GRP turns a verified payment obligation into a financeable receivable,
+            coordinates settlement in USDC and records the outcome as portable financial history.
           </p>
         </div>
       </section>
+
       <section className="section">
         <div className="shell timeline">
           {stages.map(({ icon: Icon, title, body }) => (
@@ -68,22 +79,32 @@ export default function HowItWorksPage() {
           ))}
         </div>
       </section>
+
       <section className="section section--tinted">
         <div className="shell split-callout">
           <div>
-            <span className="kicker">Regra essencial</span>
-            <h2>Sem aceite em BTC, sem pool.</h2>
+            <span className="kicker">Core rule</span>
+            <h2>No payer confirmation, no financing.</h2>
           </div>
           <div>
             <p>
-              O aceite fica registrado junto à confirmação do recebível. A cotação,
-              validade da invoice e quantidade de sats são apresentadas antes do
-              pagamento.
+              The payer confirmation is bound to the receivable and to the wallet
+              expected to settle it. Financing only starts after validation.
             </p>
-            <ButtonLink href="/pools" variant="secondary">
-              Ver pools BTC <ArrowRight aria-hidden="true" size={18} />
+            <ButtonLink href="/recebivel" variant="secondary">
+              Create a receivable <ArrowRight aria-hidden="true" size={18} />
             </ButtonLink>
           </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="shell protocol-proof">
+          <span className="tag tag--success">
+            <BadgeCheck aria-hidden="true" size={15} /> Live on Solana Devnet
+          </span>
+          <strong>GRP Program v1</strong>
+          <span>USDC settlement · wallet-bound confirmation · Receivable Passport</span>
         </div>
       </section>
     </div>
