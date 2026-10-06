@@ -7,12 +7,12 @@ export function SiteFooter() {
       <div className="shell site-footer__inner">
         <div>
           <Brand />
-          <p>Recebíveis internacionais. Liquidez em Bitcoin.</p>
+          <p>Programmable infrastructure for global receivables.</p>
         </div>
-        <div className="site-footer__links" aria-label="Links do rodapé">
-          <Link href="/como-funciona">Como funciona</Link>
-          <Link href="/pools">Pools BTC</Link>
-          <Link href="/recebivel">Criar recebível</Link>
+        <div className="site-footer__links" aria-label="Footer links">
+          <Link href="/como-funciona">How it works</Link>
+          <Link href="/recebivel">Create receivable</Link>
+          <Link href="/pools">Pools</Link>
         </div>
       </div>
     </footer>
