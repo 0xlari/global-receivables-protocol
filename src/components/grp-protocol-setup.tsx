@@ -120,11 +120,7 @@ export function GrpProtocolSetup() {
       });
 
       const sent = await provider.signAndSendTransaction(built.transaction);
-      await built.connection.confirmTransaction({
-        signature: sent.signature,
-        blockhash: built.blockhash,
-        lastValidBlockHeight: built.lastValidBlockHeight,
-      }, "confirmed");
+      await built.connection.confirmTransaction(sent.signature, "confirmed");
 
       setSignature(sent.signature);
       setMessage("ProtocolConfig inicializado na Solana Devnet.");
@@ -134,7 +130,9 @@ export function GrpProtocolSetup() {
       setMessage(
         text === "GRP_PROTOCOL_ALREADY_INITIALIZED"
           ? "O ProtocolConfig já está inicializado."
-          : text,
+          : /block height exceeded|expired/i.test(text)
+            ? "A transação expirou antes da confirmação. Clique novamente em Inicializar protocolo e aprove a assinatura assim que a carteira abrir."
+            : text,
       );
       await refreshProtocol().catch(() => undefined);
     } finally {
