@@ -414,3 +414,62 @@
 - **Estado após quitação:** recebível passa para **PAID_AFTER_DEFAULT** e a pool para **CURED**.
 - **Passport:** o default original permanece registrado e a regularização incrementa **defaults_cured**. A quitação também conta como liquidação tardia.
 - **Objetivo:** distinguir claramente entre inadimplência ainda em aberto e inadimplência posteriormente regularizada, sem apagar histórico econômico relevante.
+
+
+## ADR-053 — Markets como camada aprovada do GRP
+
+- **Data:** 2026-10-06
+- **Status:** aprovada para arquitetura GRP
+- **Decisão:** GRP passa a suportar múltiplos **Markets** especializados. Qualquer pessoa ou organização pode propor um Market, mas somente operadores aprovados podem lançá-lo. O ciclo de entrada é **Propose -> Due diligence -> Sandbox -> Approval -> Launch -> Continuous monitoring**.
+- **Market Operator:** cada Market deve possuir um operador identificável e responsável pela operação local declarada, incluindo originação, underwriting/validação, distribuição, atendimento, cobrança e responsabilidades de compliance aplicáveis ao desenho daquele Market.
+- **Separação:** GRP fornece protocolo e infraestrutura compartilhada; o Market Operator assume a camada operacional/local definida em seu Market; provedores de rail executam infraestrutura financeira específica quando necessária.
+- **Consequência:** Elas Recebem Hoje deixa de ser tratada apenas como uma vertical isolada e passa a ser o primeiro Market/aplicação do GRP.
+
+## ADR-054 — MarketConfig on-chain e compliance off-chain
+
+- **Data:** 2026-10-06
+- **Status:** aprovada para arquitetura; implementação pendente
+- **Decisão:** Market deve existir como entidade verificável do protocolo por meio de um **MarketConfig** on-chain. O estado mínimo deve identificar operador, status, versão de regras, ativo de liquidação, política de fees, escopo geográfico/operacional e referências aos rails/originators aprovados.
+- **Privacidade:** KYC/KYB, licenças, contratos, pareceres, documentos regulatórios, dados bancários, evidências de compliance e detalhes sensíveis permanecem off-chain.
+- **Receivable:** novos recebíveis devem apontar para o Market sob o qual foram originados para preservar responsabilidade, regras e economia aplicáveis.
+- **Passport:** o Receivable Passport permanece no nível do protocolo e acumula histórico entre Markets.
+
+## ADR-055 — Rail Registry e responsabilidade local
+
+- **Data:** 2026-10-06
+- **Status:** aprovada como direção de produto
+- **Decisão:** GRP poderá manter um **Rail Registry** de rails aprovados. Rails podem ser crypto-native, fiat ou híbridos. Um Market pode propor um novo rail; após análise, o rail pode tornar-se reutilizável por outros Markets quando adequado.
+- **Responsabilidade:** GRP não presume operar diretamente infraestrutura fiat em todas as jurisdições. Markets que tocam fiat ou serviços regulados devem demonstrar operador/parceiro capaz de assumir as responsabilidades legais e operacionais aplicáveis.
+- **Consequência:** expansão geográfica do GRP ocorre por operadores e rails locais aprovados, em vez de o protocolo central tentar internalizar toda a operação regulatória.
+
+## ADR-056 — economia do protocolo e protocol fee de 0,50%
+
+- **Data:** 2026-10-06
+- **Status:** aprovada como modelo econômico inicial
+- **Protocol fee:** GRP cobra **0,50% (50 bps)** sobre settlements bem-sucedidos. A cobrança deve ser transparente e programática, preferencialmente antes da distribuição final.
+- **Market Activation Fee:** taxa fixa de ativação cobrada para preparar um Market aprovado para produção. Preço comercial exato pode variar por faixa/complexidade e não é constante do smart contract.
+- **Market Maintenance Fee:** taxa fixa recorrente para Markets ativos, destinada a infraestrutura, monitoramento, suporte e governança operacional.
+- **Market Operator Fee:** receita própria do Market Operator pelos serviços locais que presta. Deve ser declarada e aprovada nas regras do Market e não pode ser confundida com a protocol fee.
+- **Alocação inicial da protocol fee:** 40% Protocol Treasury; 25% Protocol Reserve / Stability Reserve; 20% Market Development / Grants; 15% Security, audit and compliance infrastructure.
+- **Implementação:** no MVP, esses percentuais podem existir como buckets contábeis; separar vaults on-chain é decisão posterior de custódia e segurança.
+
+## ADR-057 — Protocol Reserve / Stability Reserve não é garantia automática
+
+- **Data:** 2026-10-06
+- **Status:** aprovada como princípio; política de risco detalhada pendente
+- **Decisão:** parte da receita do GRP alimenta uma reserva de estabilidade que pode oferecer suporte excepcional e parcial a Markets elegíveis após eventos de inadimplência.
+- **Não garantia:** a reserva não constitui promessa automática de cobertura, seguro universal ou garantia de pagamento.
+- **Waterfall:** cobrança/recuperação -> proteções específicas do Market -> participação/perda do operador quando aplicável -> solicitação à Reserve Facility -> análise de elegibilidade -> suporte parcial e limitado se aprovado.
+- **Critérios iniciais:** Market ativo e em conformidade; operador seguindo regras aprovadas; ausência de fraude/negligência/material breach do operador; limites de uso respeitados; possibilidade de first-loss/loss-sharing do operador.
+- **Pendente:** percentuais máximos de cobertura, first-loss, caps, frequência e processo decisório exigem política de risco separada antes de produção.
+
+## ADR-058 — arquitetura pública da plataforma GRP
+
+- **Data:** 2026-10-06
+- **Status:** aprovada como direção de produto
+- **Decisão:** a plataforma pública será separada em quatro conceitos: **Home**, **Protocol**, **Build on GRP** e **Markets**. A aplicação Elas Recebem Hoje permanece como experiência própria, acessada a partir do Market Directory.
+- **Home:** visão geral do problema, lifecycle, Passport, arquitetura global/local e primeira aplicação.
+- **Protocol:** funcionamento técnico/econômico do GRP.
+- **Build on GRP:** proposta e onboarding de novos Markets; não ativa Markets automaticamente.
+- **Markets:** diretório de Markets aprovados/sandbox/coming soon. Quando houver múltiplos Markets, o CTA Launch deve levar primeiro ao diretório, e não diretamente a um formulário genérico de recebível.
+- **Operação:** operadores aprovados terão um Operator Console; a autoridade do protocolo terá uma área administrativa para Market review, rails, fees, treasury, reserve e grants.
