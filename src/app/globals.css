@@ -1991,3 +1991,29 @@ svg {
   background: rgba(140,255,152,.06);
   color: #dfffe4;
 }
+
+.site-footer--grp {
+  border-top: 1px solid rgba(140,255,152,.08);
+  background: #020403;
+  color: #f3f5ef;
+}
+.site-footer--grp p,
+.site-footer--grp .site-footer__links { color: #69736a; }
+.site-footer--grp .site-footer__links a:hover { color: #8cff98; }
+.site-footer--grp .brand__name strong { color: #f3f5ef; }
+.site-footer--grp .brand__mark {
+  width: 2.55rem;
+  height: 2.55rem;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: .7rem;
+  background: linear-gradient(135deg, #143a23, #0b2112 60%, #8cff98);
+  color: #eaffed;
+  box-shadow: 0 0 26px rgba(140,255,152,.16);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .7rem;
+  transform: none;
+}
+.site-footer--erh {
+  background: var(--paper);
+  color: var(--ink);
+}
