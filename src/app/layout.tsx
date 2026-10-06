@@ -7,35 +7,33 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
-    default: "Elas Recebem Hoje",
-    template: "%s | Elas Recebem Hoje",
+    default: "Global Receivables Protocol",
+    template: "%s | GRP",
   },
   description:
-    "Antecipação de pagamentos internacionais para pessoas no Brasil, com foco em mulheres e liquidez em Bitcoin.",
+    "Programmable infrastructure for creating, validating, financing and settling global receivables in USDC on Solana.",
   openGraph: {
     type: "website",
-    locale: "pt_BR",
-    title: "Elas Recebem Hoje",
+    locale: "en_US",
+    title: "Global Receivables Protocol",
     description:
-      "Seu pagamento já tem data. Seu dinheiro não precisa esperar.",
-    images: [{ url: "/og.png", width: 1733, height: 909, alt: "Elas Recebem Hoje" }],
+      "Turn future payments into programmable, financeable receivables.",
+    images: [{ url: "/og.png", width: 1733, height: 909, alt: "Global Receivables Protocol" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Elas Recebem Hoje",
+    title: "Global Receivables Protocol",
     description:
-      "Seu pagamento já tem data. Seu dinheiro não precisa esperar.",
+      "Turn future payments into programmable, financeable receivables.",
     images: ["/og.png"],
   },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="en">
       <body>
-        <a className="skip-link" href="#conteudo">
-          Pular para o conteúdo
-        </a>
+        <a className="skip-link" href="#conteudo">Skip to content</a>
         <SiteHeader />
         <main id="conteudo">{children}</main>
         <SiteFooter />
