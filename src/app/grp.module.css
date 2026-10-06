@@ -489,57 +489,149 @@
   font-size: clamp(3rem, 5.6vw, 5.8rem);
 }
 
-.erhBreak {
+.verticalScene {
+  position: relative;
   display: grid;
-  grid-template-columns: 1.1fr .9fr;
+  grid-template-columns: .28fr 1fr .9fr;
+  gap: 4rem;
   align-items: center;
-  gap: 5rem;
-  padding: 8rem 7vw;
-  background: #f7f2e9;
-  color: #191a18;
+  min-height: 78svh;
+  padding: 7rem 7vw;
+  border-top: 1px solid rgba(140,255,152,.08);
+  border-bottom: 1px solid rgba(140,255,152,.08);
+  background:
+    radial-gradient(circle at 78% 48%, rgba(140,103,255,.08), transparent 20rem),
+    linear-gradient(rgba(140,255,152,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140,255,152,.025) 1px, transparent 1px),
+    #050706;
+  background-size: auto, 44px 44px, 44px 44px, auto;
 }
 
-.erhCopy > span { color: #c63d28; }
-.erhBreak h2 {
-  margin-top: .8rem;
-  font-family: Georgia, serif;
-  font-size: clamp(3rem, 6vw, 6rem);
+.verticalSignal {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid rgba(140,255,152,.16);
+  padding-right: 1.3rem;
+}
+
+.verticalSignal span,
+.verticalNodeTop,
+.verticalNode small,
+.verticalNodeState span {
+  color: #687269;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .64rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.verticalSignal > span {
+  color: var(--signal);
+}
+
+.verticalSignal strong {
+  color: #273128;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(4rem, 8vw, 8rem);
   font-weight: 500;
+  line-height: 1;
 }
 
-.erhCopy p { color: #58554f; max-width: 620px; }
-.erhCopy a {
+.verticalCopy h2 {
+  margin: 0;
+  font-size: clamp(3.3rem, 6vw, 6.2rem);
+  font-weight: 680;
+  letter-spacing: -.055em;
+  line-height: .95;
+}
+
+.verticalCopy p {
+  max-width: 570px;
+  color: #929b93;
+  line-height: 1.7;
+}
+
+.verticalAction {
   display: inline-flex;
-  gap: .5rem;
   align-items: center;
-  margin-top: 1.2rem;
+  gap: .5rem;
+  margin-top: 1rem;
+  color: #dfffe4;
   font-weight: 800;
 }
 
-.erhCard {
-  border-radius: 1.8rem;
-  background: #fffdf8;
-  box-shadow: 0 26px 80px rgba(47,34,24,.14);
-  padding: 2rem;
+.verticalAction:hover {
+  color: var(--signal);
 }
 
-.erhMark {
+.verticalNode {
+  border: 1px solid rgba(140,255,152,.15);
+  background:
+    radial-gradient(circle at 84% 10%, rgba(140,255,152,.06), transparent 12rem),
+    #0a0d0b;
+  box-shadow: 0 30px 90px rgba(0,0,0,.32);
+  padding: 1.2rem;
+}
+
+.verticalNodeTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(140,255,152,.1);
+}
+
+.verticalNodeBody {
   display: grid;
-  width: 3rem;
-  height: 3rem;
-  place-items: center;
-  border-radius: 50% 50% 50% 16%;
-  background: #f05d42;
-  color: white;
-  font-family: Georgia, serif;
-  font-size: 1.35rem;
-  font-weight: 700;
-  transform: rotate(-7deg);
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem 0;
 }
 
-.erhCard small { display: block; margin-top: 2rem; color: #b04a39; letter-spacing: .12em; }
-.erhCard h3 { margin: .6rem 0; font-family: Georgia, serif; font-size: 2.4rem; font-weight: 500; }
-.erhCard p { color: #6a665e; }
+.verticalNodeMark {
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  place-items: center;
+  border: 1px solid rgba(140,255,152,.2);
+  background: #071009;
+  color: var(--signal);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .9rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.verticalNode h3 {
+  margin: .3rem 0 .2rem;
+  color: #f0f4ef;
+  font-size: 1.6rem;
+  letter-spacing: -.03em;
+}
+
+.verticalNode p {
+  margin: 0;
+  color: #7f8980;
+  font-size: .88rem;
+}
+
+.verticalNodeState {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: .55rem 1rem;
+  border-top: 1px solid rgba(140,255,152,.1);
+  padding-top: 1rem;
+}
+
+.verticalNodeState strong {
+  color: #dfffe4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .75rem;
+  text-align: right;
+}
 
 .proof {
   display: grid;
@@ -611,11 +703,14 @@
 
 @media (max-width: 900px) {
   .passportScene,
-  .erhBreak,
+  .verticalScene,
   .proof {
     grid-template-columns: 1fr;
   }
   .scene { padding-inline: 1.2rem; }
+  .verticalScene { grid-template-columns: 1fr; }
+  .verticalSignal { min-height: 120px; border-right: 0; border-bottom: 1px solid rgba(140,255,152,.16); padding: 0 0 1rem; }
+  .verticalSignal strong { font-size: 4rem; }
   .globeWrap { width: min(92vw, 680px); }
   .worldHeader { display: none; }
 }
@@ -626,7 +721,7 @@
   .opening h1 { font-size: clamp(3.2rem, 16vw, 5rem); }
   .sceneCopy { width: min(360px, 88vw); }
   .passportScene,
-  .erhBreak,
+  .verticalScene,
   .proof,
   .statement { padding-inline: 1.2rem; }
   .passportOrbit { min-height: 440px; }
