@@ -10,6 +10,7 @@ import {
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
@@ -112,6 +113,28 @@ export async function buildPayerConfirmationTransaction(input: {
     receivableId: input.receivableId,
   });
 
+  const [configInfo, receivableInfo, mintInfo, payerTokenAccountInfo, payerBalance] =
+    await Promise.all([
+      connection.getAccountInfo(pdas.config, "confirmed"),
+      connection.getAccountInfo(pdas.receivable, "confirmed"),
+      connection.getAccountInfo(input.usdcMint, "confirmed"),
+      connection.getAccountInfo(payerTokenAccount, "confirmed"),
+      connection.getBalance(input.payer, "confirmed"),
+    ]);
+
+  if (!configInfo) {
+    throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
+  }
+  if (!receivableInfo) {
+    throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  }
+  if (!mintInfo) {
+    throw new Error("GRP_USDC_MINT_NOT_FOUND_ON_DEVNET");
+  }
+  if (payerBalance === 0) {
+    throw new Error("PAYER_NEEDS_DEVNET_SOL");
+  }
+
   const data = Buffer.concat([
     Buffer.from(RECORD_PAYER_CONFIRMATION_DISCRIMINATOR),
     Buffer.from(input.payerCommitmentHash),
@@ -140,9 +163,28 @@ export async function buildPayerConfirmationTransaction(input: {
     feePayer: input.payer,
     blockhash,
     lastValidBlockHeight,
-  }).add(instruction);
+  });
 
-  return { connection, transaction, payerTokenAccount, ...pdas };
+  if (!payerTokenAccountInfo) {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        input.payer,
+        payerTokenAccount,
+        input.payer,
+        input.usdcMint,
+      ),
+    );
+  }
+
+  transaction.add(instruction);
+
+  return {
+    connection,
+    transaction,
+    payerTokenAccount,
+    payerTokenAccountExists: Boolean(payerTokenAccountInfo),
+    ...pdas,
+  };
 }
 
 export async function payerCommitmentHash(input: {
