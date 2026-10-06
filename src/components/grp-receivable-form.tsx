@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, Copy, ExternalLink, FileCheck2, WalletCards } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
@@ -246,6 +247,9 @@ export function GrpReceivableForm() {
           >
             Abrir como pagador <ExternalLink size={17} />
           </a>
+          <Link className="button button--secondary" href="/painel">
+            Ver no painel
+          </Link>
         </div>
       </section>
     );
