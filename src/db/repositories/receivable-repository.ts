@@ -170,6 +170,29 @@ export async function inspectClientConfirmation<THKT extends PgQueryResultHKT>(
   };
 }
 
+export async function inspectGrpClientConfirmation<THKT extends PgQueryResultHKT>(
+  db: Database<THKT>, rawToken: string, now: Date,
+) {
+  const row = await findConfirmation(db, rawToken);
+  if (
+    (row.confirmation.status !== "PENDING" && row.confirmation.status !== "ACCEPTED") ||
+    row.confirmation.expiresAt <= now
+  ) {
+    invalidToken();
+  }
+  return {
+    paymentDescription: row.version.paymentDescription,
+    paymentPurpose: row.version.paymentPurpose,
+    nominalUsdCents: row.version.nominalAmount,
+    dueAt: row.version.dueAt,
+    termsVersion: RECEIVABLE_TERMS_VERSION,
+    receivableId: row.receivable.id,
+    requesterSolanaWallet: row.requesterSolanaWallet,
+    confirmationStatus: row.confirmation.status,
+    confirmationExpiresAt: row.confirmation.expiresAt,
+  };
+}
+
 export async function reviseReceivable<THKT extends PgQueryResultHKT>(
   db: Database<THKT>,
   input: {
