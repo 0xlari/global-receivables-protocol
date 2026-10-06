@@ -20,6 +20,71 @@ Portable performance history derived from completed receivables and settlement o
 
 First vertical application of GRP, focused initially on people and small businesses in Brazil receiving from international payers.
 
+
+## Market layer
+
+GRP supports multiple approved receivables Markets. A Market is not merely a frontend label: it identifies the operating context under which receivables are originated.
+
+### MarketConfig
+
+Suggested fields:
+
+- market_id
+- operator
+- status
+- settlement_asset
+- protocol_fee_bps
+- operator_fee_policy
+- rules_version
+- geography / scope commitment
+- approved_originators
+- approved rail references
+- reserve_eligibility
+- created_at / updated_at
+- bump
+
+Every new receivable should reference its MarketConfig.
+
+Market-sensitive compliance evidence remains off-chain. The on-chain MarketConfig exposes only the minimum state required for protocol authority, economics and auditability.
+
+### Market approval
+
+Markets follow:
+
+`PROPOSED -> SANDBOX -> ACTIVE | REJECTED -> PAUSED | SUSPENDED | RETIRED`
+
+Only protocol-approved Markets may become ACTIVE.
+
+### Economics
+
+GRP's initial protocol fee is **50 bps (0.50%) of successful settlement value**.
+
+The economic layers are distinct:
+
+- protocol fee -> GRP;
+- fixed Market Activation Fee -> GRP/commercial onboarding;
+- fixed recurring Market Maintenance Fee -> GRP;
+- Market Operator fee -> operator economics under approved Market rules.
+
+Initial protocol-fee allocation policy:
+
+- 40% Protocol Treasury
+- 25% Protocol Reserve / Stability Reserve
+- 20% Market Development / Grants
+- 15% Security, audit and compliance infrastructure
+
+For the MVP, these may be accounting buckets rather than separate token vaults.
+
+### Reserve principle
+
+The Protocol Reserve is a discretionary, rule-based stability facility, not an automatic repayment guarantee. Support must be partial/capped and subject to Market/operator eligibility and a separate risk policy.
+
+### Rail layer
+
+Markets may use approved crypto-native, fiat or hybrid rails. Fiat-touching flows require an appropriate local operator/provider. Rail approvals and detailed compliance evidence remain operational/off-chain in the MVP, with a future Rail Registry as shared GRP infrastructure.
+
+See `docs/21-grp-markets-operators-economics.md` for the complete model.
+
 ## Canonical state
 
 For GRP v0.1:
@@ -75,6 +140,7 @@ Suggested fields:
 - id / public nonce
 - requester
 - originator
+- market
 - payer_wallet
 - payer_commitment_hash
 - evidence_commitment
