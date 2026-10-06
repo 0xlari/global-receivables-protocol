@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && tsc --noEmit",
     "test": "vitest run",
     "test:db": "vitest run src/db",
     "test:watch": "vitest",
