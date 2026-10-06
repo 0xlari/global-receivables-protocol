@@ -35,8 +35,9 @@ export function SiteFooter() {
         </div>
         <div className="site-footer__links" aria-label="Footer links">
           <Link href="/como-funciona">Protocol</Link>
-          <Link href="/elas-recebem-hoje">Built on GRP</Link>
-          <Link href="/entrar?next=/recebivel">Launch app</Link>
+          <Link href="/build-on-grp">Build on GRP</Link>
+          <Link href="/markets">Markets</Link>
+          <Link href="/markets">Launch</Link>
         </div>
       </div>
     </footer>
