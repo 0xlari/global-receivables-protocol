@@ -1,36 +1,48 @@
 import {
   ArrowRight,
   BadgeCheck,
-  Bitcoin,
+  CircleDollarSign,
   FileCheck2,
   Globe2,
-  Radio,
-  Sparkles,
+  History,
+  Landmark,
+  Network,
+  ShieldCheck,
+  WalletCards,
 } from "lucide-react";
+
 import { ButtonLink } from "@/components/button-link";
-import { PoolCard } from "@/components/pool-card";
-import { publicPools } from "@/data/public-pools";
 
 const steps = [
   {
     number: "01",
-    title: "Você apresenta o recebível",
-    body: "Cadastre o salário, venda, comissão, serviço ou outro pagamento, com valor e data combinados com o pagador no exterior.",
+    title: "Create",
+    body: "Register a receivable while keeping sensitive documents and personal data off-chain.",
   },
   {
     number: "02",
-    title: "O pagador confirma e aceita BTC",
-    body: "Por um link seguro, ele confirma os dados e concorda em pagar uma invoice Lightning no vencimento.",
+    title: "Confirm",
+    body: "The payer confirms the obligation with the wallet that will settle it.",
   },
   {
     number: "03",
-    title: "A plataforma valida",
-    body: "Identidade, evidências, duplicidade e histórico passam por regras claras antes da pool existir.",
+    title: "Validate",
+    body: "An originator verifies the receivable before it becomes eligible for financing.",
   },
   {
     number: "04",
-    title: "Você recebe hoje",
-    body: "Aportadoras completam a pool e a antecipação é enviada para sua carteira em Bitcoin.",
+    title: "Fund",
+    body: "Investors provide USDC liquidity through a receivable-specific pool.",
+  },
+  {
+    number: "05",
+    title: "Settle",
+    body: "The payer settles in USDC through the authorization attached to the receivable.",
+  },
+  {
+    number: "06",
+    title: "Build reputation",
+    body: "Settlement outcomes update a portable Receivable Passport on Solana.",
   },
 ];
 
@@ -41,101 +53,103 @@ export default function Home() {
         <div className="shell hero__grid">
           <div className="hero__copy">
             <div className="eyebrow">
-              <Sparkles aria-hidden="true" size={16} />
-              Liquidez para quem tem a receber do exterior
+              <Network aria-hidden="true" size={16} />
+              Global Receivables Protocol
             </div>
             <h1>
-              Seu pagamento já tem data. <em>Seu dinheiro não precisa esperar.</em>
+              Turn future payments into <em>programmable, financeable receivables.</em>
             </h1>
             <p className="hero__lead">
-              Antecipe pagamentos de pagadores no exterior com uma pool financiada em
-              Bitcoin — de forma clara, comunitária e focada em mulheres
-              no centro.
+              Create, validate, finance and settle global receivables in USDC on Solana
+              while building a portable payment history.
             </p>
             <div className="hero__actions">
-              <ButtonLink href="/entrar?next=/painel">
-                Criar recebível <ArrowRight aria-hidden="true" size={18} />
+              <ButtonLink href="/entrar?next=/recebivel">
+                Create a receivable <ArrowRight aria-hidden="true" size={18} />
               </ButtonLink>
-              <ButtonLink href="/pools" variant="secondary">
-                Ver pools abertas
+              <ButtonLink href="#how-it-works" variant="secondary">
+                Explore the protocol
               </ButtonLink>
             </div>
-            <ul className="trust-list" aria-label="Princípios da plataforma">
-              <li>
-                <BadgeCheck aria-hidden="true" size={17} /> Validação da plataforma
-              </li>
-              <li>
-                <Bitcoin aria-hidden="true" size={17} /> BTC via Lightning
-              </li>
-              <li>
-                <Radio aria-hidden="true" size={17} /> Reputação portátil
-              </li>
+            <ul className="trust-list" aria-label="Protocol properties">
+              <li><BadgeCheck aria-hidden="true" size={17} /> Verifiable receivables</li>
+              <li><CircleDollarSign aria-hidden="true" size={17} /> USDC settlement</li>
+              <li><History aria-hidden="true" size={17} /> Portable payment history</li>
             </ul>
           </div>
 
-          <div className="hero-board" aria-label="Exemplo de recebível">
+          <div className="hero-board" aria-label="Global receivable example">
             <div className="hero-board__halo" aria-hidden="true" />
             <div className="receipt-card">
               <div className="receipt-card__head">
                 <span className="tag tag--success">
-                  <FileCheck2 aria-hidden="true" size={15} /> Recebível aprovado
+                  <FileCheck2 aria-hidden="true" size={15} /> Verified receivable
                 </span>
-                <span className="receipt-card__id">#ERH-024</span>
+                <span className="receipt-card__id">GRP-001</span>
               </div>
-              <p>Pagamento internacional confirmado</p>
-              <strong>US$ 2.000</strong>
+              <p>Global service payment</p>
+              <strong>US$ 2,000</strong>
               <div className="receipt-card__rows">
                 <span>
-                  <small>Antecipação</small>
-                  US$ 1.900 em BTC
+                  <small>Advance</small>
+                  1,900 USDC
                 </span>
                 <span>
-                  <small>Vencimento</small>
-                  Dia 30
+                  <small>Settlement</small>
+                  Due in 30 days
                 </span>
               </div>
             </div>
             <div className="floating-note floating-note--client">
-              <Globe2 aria-hidden="true" size={18} />
+              <WalletCards aria-hidden="true" size={18} />
               <span>
-                Pagador no exterior
-                <strong>Pagamento em BTC aceito</strong>
+                Payer confirmation
+                <strong>Wallet-bound obligation</strong>
               </span>
             </div>
             <div className="floating-note floating-note--wallet">
-              <Bitcoin aria-hidden="true" size={18} />
+              <Landmark aria-hidden="true" size={18} />
               <span>
-                Para sua carteira
-                <strong>Liquidação Lightning</strong>
+                Settlement rail
+                <strong>USDC on Solana</strong>
               </span>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="signal-strip" aria-label="Resumo do produto">
+      <section className="signal-strip" aria-label="Protocol summary">
         <div className="shell signal-strip__inner">
-          <span>Brasil → mundo</span>
-          <span>Recebível confirmado</span>
-          <span>Pool em Bitcoin</span>
-          <span>Custos transparentes</span>
+          <span>Global receivables</span>
+          <span>Payer confirmed</span>
+          <span>USDC liquidity</span>
+          <span>Portable history</span>
         </div>
       </section>
 
-      <section className="section section--steps">
+      <section className="section section--steps" id="how-it-works">
         <div className="shell">
           <div className="section-heading">
             <div>
-              <span className="kicker">Da entrega à liquidez</span>
-              <h2>Quatro passos. Nenhuma promessa escondida.</h2>
+              <span className="kicker">How GRP works</span>
+              <h2>From future payment to verifiable financial history.</h2>
             </div>
             <p>
-              O pagador precisa aceitar pagar em BTC. Sem esse aceite, nenhuma pool é
-              aberta e nenhum dinheiro entra na plataforma.
+              GRP coordinates the receivable lifecycle while keeping sensitive commercial
+              data private and the canonical financial state on Solana.
             </p>
           </div>
           <div className="steps-grid">
-            {steps.map((step) => (
+            {steps.slice(0, 4).map((step) => (
+              <article className="step-card" key={step.number}>
+                <span>{step.number}</span>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </article>
+            ))}
+          </div>
+          <div className="steps-grid">
+            {steps.slice(4).map((step) => (
               <article className="step-card" key={step.number}>
                 <span>{step.number}</span>
                 <h3>{step.title}</h3>
@@ -146,56 +160,83 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="section section--reputation">
+        <div className="shell reputation-card">
+          <div>
+            <span className="kicker kicker--light">Receivable Passport</span>
+            <h2>A financial history that travels with you.</h2>
+            <p>
+              Every settled receivable adds verifiable performance data to the Receivable
+              Passport, including on-time payments, late settlements, defaults and cured defaults.
+            </p>
+          </div>
+          <div className="reputation-signals">
+            <span><BadgeCheck aria-hidden="true" /> Settled on time</span>
+            <span><History aria-hidden="true" /> Late and cured outcomes</span>
+            <span><Globe2 aria-hidden="true" /> Portable across GRP applications</span>
+          </div>
+        </div>
+      </section>
+
       <section className="section section--pools">
         <div className="shell pools-layout">
           <div className="pools-copy">
-            <span className="kicker">Financiamento comunitário</span>
-            <h2>Uma pool BTC com risco e cobertura visíveis.</h2>
-            <p>Aportadoras podem financiar uma parte ou completar toda a pool. Garantia e tesouraria cobrem somente o principal, nunca rendimentos.</p>
-            <ButtonLink href="/pools" variant="secondary">
-              Ver todas as pools
-            </ButtonLink>
+            <span className="kicker">Why Solana</span>
+            <h2>Fast settlement, global USDC liquidity, composable financial state.</h2>
+            <p>
+              Solana is the canonical financial layer of GRP. Sensitive documents, identity
+              information and commercial evidence stay private off-chain.
+            </p>
           </div>
-          <div className="pools-stack">
-            <PoolCard pool={publicPools[0]} />
-            <PoolCard pool={publicPools[1]} />
+          <div className="reputation-signals">
+            <span><CircleDollarSign aria-hidden="true" /> USDC-native settlement</span>
+            <span><Network aria-hidden="true" /> Programmable receivable lifecycle</span>
+            <span><ShieldCheck aria-hidden="true" /> Private data stays off-chain</span>
           </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="shell section-heading">
+          <div>
+            <span className="kicker">Built on GRP</span>
+            <h2>Elas Recebem Hoje is the first vertical powered by the protocol.</h2>
+          </div>
+          <p>
+            The Brazilian application focuses on professionals receiving income from global
+            clients, proving that GRP can power real receivable products for specific markets.
+          </p>
         </div>
       </section>
 
       <section className="section section--reputation">
         <div className="shell reputation-card">
           <div>
-            <span className="kicker kicker--light">Confiança que acompanha você</span>
-            <h2>Reputação não é uma nota misteriosa.</h2>
+            <span className="kicker kicker--light">Live protocol</span>
+            <h2>GRP is live on Solana Devnet.</h2>
             <p>
-              Identidade, recebíveis concluídos, pagamentos e histórico aparecem como
-              sinais separados. Atestados Nostr usam somente referências não sensíveis.
+              The deployed program is already configured for USDC settlement and the protocol
+              lifecycle is being tested end to end through the application.
             </p>
           </div>
           <div className="reputation-signals">
-            <span>
-              <BadgeCheck aria-hidden="true" /> Identidade verificada
-            </span>
-            <span>
-              <FileCheck2 aria-hidden="true" /> 3 operações concluídas
-            </span>
-            <span>
-              <Radio aria-hidden="true" /> Atestado portátil
-            </span>
+            <span><Network aria-hidden="true" /> Solana Devnet</span>
+            <span><BadgeCheck aria-hidden="true" /> Protocol version 1</span>
+            <span><CircleDollarSign aria-hidden="true" /> USDC settlement</span>
           </div>
         </div>
       </section>
 
       <section className="section final-cta">
         <div className="shell final-cta__inner">
-          <span className="kicker">Elas recebem hoje</span>
-          <h2>O futuro do trabalho já chegou. O pagamento também pode chegar.</h2>
+          <span className="kicker">Global Receivables Protocol</span>
+          <h2>Create your first global receivable.</h2>
           <p>
-            Entre com sua carteira e escolha entre criar um recebível ou aportar em uma pool BTC.
+            Register a future payment, get payer confirmation and turn it into a financeable
+            on-chain receivable.
           </p>
-          <ButtonLink href="/entrar?next=/painel">
-            Entrar na plataforma <ArrowRight aria-hidden="true" size={18} />
+          <ButtonLink href="/entrar?next=/recebivel">
+            Create receivable <ArrowRight aria-hidden="true" size={18} />
           </ButtonLink>
         </div>
       </section>
