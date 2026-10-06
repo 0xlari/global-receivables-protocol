@@ -1975,3 +1975,19 @@ svg {
   font-size: 1.25rem;
   transform: rotate(-7deg);
 }
+
+.site-header--immersive {
+  position: fixed;
+  width: 100%;
+  border-bottom: 1px solid rgba(140,255,152,.08);
+  background: linear-gradient(to bottom, rgba(2,4,3,.88), rgba(2,4,3,.44));
+}
+.site-header--immersive .site-header__inner { min-height: 68px; }
+.site-header--immersive .brand__name strong { color: #f3f5ef; }
+.site-header--immersive .desktop-nav > a:not(.button) { color: #7e887f; }
+.site-header--immersive .desktop-nav > a:hover { color: #8cff98; }
+.site-header--immersive .button--quiet {
+  border-color: rgba(140,255,152,.22);
+  background: rgba(140,255,152,.06);
+  color: #dfffe4;
+}
