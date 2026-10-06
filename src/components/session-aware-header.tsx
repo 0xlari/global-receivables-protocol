@@ -18,7 +18,7 @@ export function SessionAwareNavigation({ mobile = false }: { mobile?: boolean })
         if (!active) return;
         if (!response.ok) return setSession({ status: "anonymous" });
         const body = await response.json() as { profile?: { label: string } };
-        setSession({ status: "authenticated", label: body.profile?.label ?? "Perfil conectado" });
+        setSession({ status: "authenticated", label: body.profile?.label ?? "Connected wallet" });
       })
       .catch(() => {
         if (active) setSession({ status: "anonymous" });
@@ -35,16 +35,17 @@ export function SessionAwareNavigation({ mobile = false }: { mobile?: boolean })
 
   return (
     <>
-      <Link href="/como-funciona">Como funciona</Link>
+      <Link href="/como-funciona">How it works</Link>
+      <Link href="/recebivel">Receivables</Link>
       <Link href="/pools">Pools</Link>
       {session.status === "authenticated" ? (
         <>
-          <Link href="/painel">Painel</Link>
-          <Link href="/entrar?trocar=1&next=/painel" title={session.label}>Trocar identidade</Link>
-          <button className={mobile ? "mobile-nav__action" : "nav-action"} type="button" onClick={signOut}>Sair</button>
+          <Link href="/painel">Dashboard</Link>
+          <Link href="/entrar?trocar=1&next=/painel" title={session.label}>Switch wallet</Link>
+          <button className={mobile ? "mobile-nav__action" : "nav-action"} type="button" onClick={signOut}>Sign out</button>
         </>
       ) : (
-        <Link className={mobile ? undefined : "button button--quiet"} href="/entrar">Entrar</Link>
+        <Link className={mobile ? undefined : "button button--quiet"} href="/entrar">Sign in</Link>
       )}
     </>
   );
