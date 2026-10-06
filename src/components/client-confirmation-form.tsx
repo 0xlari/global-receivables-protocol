@@ -266,11 +266,22 @@ export function ClientConfirmationForm() {
       setStep("done");
       setState("ready");
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível registrar a autorização na Solana.",
-      );
+      const raw = error instanceof Error
+        ? error.message
+        : "Não foi possível registrar a autorização na Solana.";
+      const friendly =
+        raw === "GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET"
+          ? "O protocolo GRP não foi encontrado na Solana Devnet. Confirme que a carteira está em Devnet, não em Testnet."
+          : raw === "GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET"
+            ? "Este recebível não foi encontrado na Solana Devnet. Volte à solicitante e confirme se a criação on-chain foi concluída."
+            : raw === "GRP_USDC_MINT_NOT_FOUND_ON_DEVNET"
+              ? "O USDC configurado para o GRP não existe na Devnet."
+              : raw === "PAYER_NEEDS_DEVNET_SOL"
+                ? "A carteira do pagador precisa de SOL na Solana Devnet para criar a autorização e o vault do recebível."
+                : /simulation|revert|failed to simulate|insufficient funds/i.test(raw)
+                  ? "A carteira não conseguiu simular a transação na Solana Devnet. Confirme: rede Devnet selecionada, algum SOL de Devnet para taxas/rent e USDC do mint configurado pelo GRP."
+                  : raw;
+      setMessage(friendly);
       setState("error");
     }
   }
@@ -325,7 +336,7 @@ export function ClientConfirmationForm() {
 
         <div className="confirmation-form__security">
           <LockKeyhole />
-          A transação cria a autorização on-chain e o limite de USDC. Nenhum USDC é transferido agora.
+          Rede obrigatória: Solana Devnet. A transação cria a autorização on-chain e o limite de USDC. Nenhum USDC é transferido agora.
         </div>
 
         {state === "error" && message ? <p className="form-error">{message}</p> : null}
