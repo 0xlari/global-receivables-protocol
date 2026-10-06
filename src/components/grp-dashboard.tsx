@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, FilePlus2, RefreshCw, WalletCards } from "lucide-react";
+import {
+  ArrowRight,
+  Copy,
+  ExternalLink,
+  FilePlus2,
+  Link2,
+  RefreshCw,
+  WalletCards,
+} from "lucide-react";
 
 type GrpReceivable = {
   id: string;
@@ -15,6 +23,13 @@ type GrpReceivable = {
   updatedAt: string;
   confirmationStatus: string | null;
   confirmationExpiresAt: string | null;
+};
+
+type LinkState = {
+  url?: string;
+  loading?: boolean;
+  copied?: boolean;
+  error?: string;
 };
 
 const statusLabels: Record<string, string> = {
@@ -43,9 +58,10 @@ export function GrpDashboard() {
   const [items, setItems] = useState<GrpReceivable[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [links, setLinks] = useState<Record<string, LinkState>>({});
 
-  async function load() {
-    setState("loading");
+  async function load(showLoading = true) {
+    if (showLoading) setState("loading");
     setMessage("");
     try {
       const response = await fetch("/api/grp/receivables", { cache: "no-store" });
@@ -64,8 +80,66 @@ export function GrpDashboard() {
   }
 
   useEffect(() => {
-    void load();
+    let active = true;
+    fetch("/api/grp/receivables", { cache: "no-store" })
+      .then(async (response) => {
+        if (response.status === 401) {
+          window.location.href = "/entrar?next=/painel";
+          return;
+        }
+        const body = await response.json() as { receivables?: GrpReceivable[]; error?: string };
+        if (!response.ok) throw new Error(body.error ?? "Não foi possível carregar seus recebíveis.");
+        if (!active) return;
+        setItems(body.receivables ?? []);
+        setState("ready");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMessage(error instanceof Error ? error.message : "Não foi possível carregar seus recebíveis.");
+        setState("error");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
+
+  async function issueLink(receivableId: string) {
+    setLinks((current) => ({
+      ...current,
+      [receivableId]: { ...current[receivableId], loading: true, error: "", copied: false },
+    }));
+    try {
+      const response = await fetch(
+        \`/api/grp/receivables/\${receivableId}/confirmation-link\`,
+        { method: "POST" },
+      );
+      const body = await response.json() as { confirmationUrl?: string; error?: string };
+      if (!response.ok || !body.confirmationUrl) {
+        throw new Error(body.error ?? "Não foi possível gerar o link.");
+      }
+      setLinks((current) => ({
+        ...current,
+        [receivableId]: { url: body.confirmationUrl, loading: false },
+      }));
+    } catch (error) {
+      setLinks((current) => ({
+        ...current,
+        [receivableId]: {
+          ...current[receivableId],
+          loading: false,
+          error: error instanceof Error ? error.message : "Não foi possível gerar o link.",
+        },
+      }));
+    }
+  }
+
+  async function copyLink(receivableId: string, url: string) {
+    await navigator.clipboard.writeText(url);
+    setLinks((current) => ({
+      ...current,
+      [receivableId]: { ...current[receivableId], copied: true },
+    }));
+  }
 
   if (state === "loading") {
     return <div className="dashboard-loading">Carregando seus recebíveis GRP…</div>;
@@ -109,20 +183,68 @@ export function GrpDashboard() {
 
         {items.length ? (
           <div className="profile-items">
-            {items.map((item) => (
-              <div key={item.id}>
-                <strong>{item.description}</strong>
-                <span>
-                  {formatUsd(item.nominalUsdCents)} · {statusLabels[item.status] ?? item.status}
-                </span>
-                <span>
-                  Vencimento {new Date(item.dueAt).toLocaleDateString("pt-BR")}
-                  {item.confirmationStatus
-                    ? " · confirmação: " + (item.confirmationStatus === "PENDING" ? "pendente" : item.confirmationStatus.toLowerCase())
-                    : ""}
-                </span>
-              </div>
-            ))}
+            {items.map((item) => {
+              const linkState = links[item.id] ?? {};
+              const canIssueLink =
+                (item.status === "AWAITING_CLIENT" || item.status === "UNDER_VALIDATION") &&
+                (item.confirmationStatus === "PENDING" || item.confirmationStatus === "ACCEPTED");
+
+              return (
+                <div key={item.id}>
+                  <strong>{item.description}</strong>
+                  <span>
+                    {formatUsd(item.nominalUsdCents)} · {statusLabels[item.status] ?? item.status}
+                  </span>
+                  <span>
+                    Vencimento {new Date(item.dueAt).toLocaleDateString("pt-BR")}
+                    {item.confirmationStatus
+                      ? " · confirmação: " + (item.confirmationStatus === "PENDING" ? "pendente" : item.confirmationStatus.toLowerCase())
+                      : ""}
+                  </span>
+
+                  {canIssueLink ? (
+                    <div className="demo-actions">
+                      <button
+                        className="button button--secondary"
+                        type="button"
+                        disabled={linkState.loading}
+                        onClick={() => void issueLink(item.id)}
+                      >
+                        <Link2 size={16} />
+                        {linkState.loading ? "Gerando…" : linkState.url ? "Gerar outro link" : "Gerar link do pagador"}
+                      </button>
+
+                      {linkState.url ? (
+                        <>
+                          <button
+                            className="button button--secondary"
+                            type="button"
+                            onClick={() => void copyLink(item.id, linkState.url!)}
+                          >
+                            <Copy size={16} /> {linkState.copied ? "Copiado" : "Copiar link"}
+                          </button>
+                          <a
+                            className="button button--primary"
+                            href={linkState.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Abrir link <ExternalLink size={16} />
+                          </a>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {linkState.url ? (
+                    <small>
+                      O link foi reemitido por segurança. Se você gerar outro, o anterior deixa de funcionar.
+                    </small>
+                  ) : null}
+                  {linkState.error ? <small className="form-error">{linkState.error}</small> : null}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-demo-state">
