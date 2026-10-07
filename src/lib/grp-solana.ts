@@ -207,6 +207,106 @@ export async function payerCommitmentHash(input: {
 }
 
 
+export type GrpValidationDecision = "NEEDS_INFORMATION" | "APPROVED" | "REJECTED";
+
+function validationDecisionByte(decision: GrpValidationDecision) {
+  if (decision === "NEEDS_INFORMATION") return 0;
+  if (decision === "APPROVED") return 1;
+  return 2;
+}
+
+export async function validationDecisionCommitment(input: {
+  receivableId: string;
+  decision: GrpValidationDecision;
+  reason: string;
+}) {
+  const payload = new TextEncoder().encode(
+    [
+      "GRP:VALIDATION:v1",
+      input.receivableId,
+      input.decision,
+      input.reason.trim(),
+      GRP_PROGRAM_ID.toBase58(),
+    ].join("|"),
+  );
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", payload));
+}
+
+export async function buildRecordValidationTransaction(input: {
+  validator: PublicKey;
+  requester: PublicKey;
+  receivableId: string;
+  decision: GrpValidationDecision;
+  decisionCommitment: Uint8Array;
+  rulesVersion?: number;
+}) {
+  if (input.decisionCommitment.length !== 32) {
+    throw new Error("Invalid validation commitment.");
+  }
+
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [validation] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("validation"),
+      pdas.receivable.toBuffer(),
+      input.validator.toBuffer(),
+    ],
+    GRP_PROGRAM_ID,
+  );
+
+  const [configInfo, receivableInfo] = await Promise.all([
+    connection.getAccountInfo(pdas.config, "confirmed"),
+    connection.getAccountInfo(pdas.receivable, "confirmed"),
+  ]);
+
+  if (!configInfo) throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
+  if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+
+  const data = Buffer.concat([
+    Buffer.from(await anchorDiscriminator("record_validation")),
+    Buffer.from([validationDecisionByte(input.decision)]),
+    Buffer.from(input.decisionCommitment),
+    Buffer.from(Uint8Array.of(
+      (input.rulesVersion ?? 1) & 0xff,
+      ((input.rulesVersion ?? 1) >> 8) & 0xff,
+    )),
+  ]);
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+      { pubkey: validation, isSigner: false, isWritable: true },
+      { pubkey: input.validator, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.validator,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection,
+    transaction,
+    validation,
+    receivable: pdas.receivable,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
+
 async function anchorDiscriminator(name: string) {
   const digest = new Uint8Array(
     await crypto.subtle.digest(
