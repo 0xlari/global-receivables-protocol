@@ -258,13 +258,17 @@ export async function buildRecordValidationTransaction(input: {
     GRP_PROGRAM_ID,
   );
 
-  const [configInfo, receivableInfo] = await Promise.all([
+  const [configInfo, receivableInfo, payerAuthorizationInfo] = await Promise.all([
     connection.getAccountInfo(pdas.config, "confirmed"),
     connection.getAccountInfo(pdas.receivable, "confirmed"),
+    connection.getAccountInfo(pdas.payerAuthorization, "confirmed"),
   ]);
 
   if (!configInfo) throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
   if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  if (!payerAuthorizationInfo) {
+    throw new Error("GRP_PAYER_AUTHORIZATION_NOT_FOUND_ON_DEVNET");
+  }
 
   const data = Buffer.concat([
     Buffer.from(await anchorDiscriminator("record_validation")),
