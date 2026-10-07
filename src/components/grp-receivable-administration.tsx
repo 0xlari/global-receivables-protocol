@@ -57,7 +57,7 @@ export function GrpReceivableAdministration() {
       const response = await fetch("/api/grp/admin/receivables", { cache: "no-store" });
       const body = await response.json() as { receivables?: AdminReceivable[]; error?: string };
       if (response.status === 401) {
-        window.location.href = "/entrar?next=/administracao/grp";
+        window.location.assign("/entrar?next=/administracao/grp");
         return;
       }
       if (response.status === 403) {
@@ -79,7 +79,7 @@ export function GrpReceivableAdministration() {
         const body = await response.json() as { receivables?: AdminReceivable[]; error?: string };
         if (!active) return;
         if (response.status === 401) {
-          window.location.href = "/entrar?next=/administracao/grp";
+          window.location.assign("/entrar?next=/administracao/grp");
           return;
         }
         if (response.status === 403) {
