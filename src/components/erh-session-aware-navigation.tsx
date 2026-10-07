@@ -50,9 +50,11 @@ export function ErhSessionAwareNavigation({ mobile = false }: { mobile?: boolean
       <Link href="/elas-recebem-hoje">Início</Link>
       <Link href="/elas-recebem-hoje#como-funciona">Como funciona</Link>
       <Link href="/elas-recebem-hoje/recebivel">Criar recebível</Link>
+      <Link href="/elas-recebem-hoje/oportunidades">Oportunidades</Link>
       {session.status === "authenticated" ? (
         <>
           <Link href="/elas-recebem-hoje/painel">Meu painel</Link>
+          <Link href="/elas-recebem-hoje/carteira">Minha carteira</Link>
           <Link
             href="/elas-recebem-hoje/entrar?trocar=1&next=/elas-recebem-hoje/painel"
             title={session.label}
