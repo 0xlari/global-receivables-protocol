@@ -206,7 +206,11 @@ export function GrpDashboard({
 
               return (
                 <div key={item.id}>
-                  <strong>{item.description}</strong>
+                  {experience === "ERH" ? (
+                    <Link href={"/elas-recebem-hoje/recebivel/" + item.id}><strong>{item.description}</strong></Link>
+                  ) : (
+                    <strong>{item.description}</strong>
+                  )}
                   <span>
                     {formatUsd(item.nominalUsdCents)} · {statusLabels[item.status] ?? item.status}
                   </span>
