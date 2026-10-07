@@ -60,7 +60,15 @@ function evidenceMetadata(file: File, sha256: string) {
   };
 }
 
-export function GrpReceivableForm() {
+export function GrpReceivableForm({
+  loginHref = "/entrar?next=/recebivel",
+  dashboardHref = "/painel",
+  experience = "GRP",
+}: {
+  loginHref?: string;
+  dashboardHref?: string;
+  experience?: "GRP" | "ERH";
+} = {}) {
   const [profile, setProfile] = useState<SessionProfile>();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [created, setCreated] = useState<CreatedReceivable>();
@@ -147,6 +155,7 @@ export function GrpReceivableForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          experience,
           paymentPurpose: String(data.get("purpose")),
           paymentDescription: String(data.get("description")),
           nominalUsdCents: String(Math.round(amount * 100)),
@@ -204,7 +213,7 @@ export function GrpReceivableForm() {
     return (
       <div className="demo-callout">
         <strong>Entre para continuar.</strong>
-        <a className="button button--primary" href="/entrar?next=/recebivel">
+        <a className="button button--primary" href={loginHref}>
           Entrar com carteira Solana
         </a>
       </div>
@@ -247,7 +256,7 @@ export function GrpReceivableForm() {
           >
             Abrir como pagador <ExternalLink size={17} />
           </a>
-          <Link className="button button--secondary" href="/painel">
+          <Link className="button button--secondary" href={dashboardHref}>
             Ver no painel
           </Link>
         </div>
