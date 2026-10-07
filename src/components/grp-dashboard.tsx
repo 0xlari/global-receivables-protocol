@@ -109,7 +109,7 @@ export function GrpDashboard({
     return () => {
       active = false;
     };
-  }, []);
+  }, [loginHref]);
 
   async function issueLink(receivableId: string) {
     setLinks((current) => ({
@@ -150,7 +150,11 @@ export function GrpDashboard({
   }
 
   if (state === "loading") {
-    return <div className="dashboard-loading">Carregando seus recebíveis GRP…</div>;
+    return (
+      <div className="dashboard-loading">
+        {experience === "ERH" ? "Carregando seus recebíveis…" : "Carregando seus recebíveis GRP…"}
+      </div>
+    );
   }
 
   return (
@@ -259,7 +263,9 @@ export function GrpDashboard({
           </div>
         ) : (
           <div className="empty-demo-state">
-            <p>Você ainda não criou nenhum recebível no GRP.</p>
+            <p>{experience === "ERH"
+              ? "Você ainda não criou nenhum recebível."
+              : "Você ainda não criou nenhum recebível no GRP."}</p>
             <Link className="button button--primary" href={createHref}>
               Criar o primeiro recebível <ArrowRight size={17} />
             </Link>
