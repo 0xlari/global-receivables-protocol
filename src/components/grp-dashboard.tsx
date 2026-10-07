@@ -54,7 +54,15 @@ function formatUsd(cents: string) {
   });
 }
 
-export function GrpDashboard() {
+export function GrpDashboard({
+  experience = "GRP",
+  createHref = "/recebivel",
+  loginHref = "/entrar?next=/painel",
+}: {
+  experience?: "GRP" | "ERH";
+  createHref?: string;
+  loginHref?: string;
+} = {}) {
   const [items, setItems] = useState<GrpReceivable[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -66,7 +74,7 @@ export function GrpDashboard() {
     try {
       const response = await fetch("/api/grp/receivables", { cache: "no-store" });
       if (response.status === 401) {
-        window.location.href = "/entrar?next=/painel";
+        window.location.href = loginHref;
         return;
       }
       const body = await response.json() as { receivables?: GrpReceivable[]; error?: string };
@@ -84,7 +92,7 @@ export function GrpDashboard() {
     fetch("/api/grp/receivables", { cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
-          window.location.href = "/entrar?next=/painel";
+          window.location.href = loginHref;
           return;
         }
         const body = await response.json() as { receivables?: GrpReceivable[]; error?: string };
@@ -110,7 +118,7 @@ export function GrpDashboard() {
     }));
     try {
       const response = await fetch(
-        `/api/grp/receivables/${receivableId}/confirmation-link`,
+        `/api/grp/receivables/${receivableId}/confirmation-link${experience === "ERH" ? "?experience=erh" : ""}`,
         { method: "POST" },
       );
       const body = await response.json() as { confirmationUrl?: string; error?: string };
@@ -173,7 +181,7 @@ export function GrpDashboard() {
             <button className="button button--secondary" type="button" onClick={() => void load()}>
               <RefreshCw size={16} /> Atualizar
             </button>
-            <Link className="button button--primary" href="/recebivel">
+            <Link className="button button--primary" href={createHref}>
               <FilePlus2 size={17} /> Criar recebível
             </Link>
           </div>
@@ -249,7 +257,7 @@ export function GrpDashboard() {
         ) : (
           <div className="empty-demo-state">
             <p>Você ainda não criou nenhum recebível no GRP.</p>
-            <Link className="button button--primary" href="/recebivel">
+            <Link className="button button--primary" href={createHref}>
               Criar o primeiro recebível <ArrowRight size={17} />
             </Link>
           </div>
