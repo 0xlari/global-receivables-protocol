@@ -23,6 +23,9 @@ type GrpReceivable = {
   updatedAt: string;
   confirmationStatus: string | null;
   confirmationExpiresAt: string | null;
+  marketId?: string | null;
+  marketSlug?: string | null;
+  marketName?: string | null;
 };
 
 type LinkState = {
@@ -72,7 +75,7 @@ export function GrpDashboard({
     if (showLoading) setState("loading");
     setMessage("");
     try {
-      const response = await fetch("/api/grp/receivables", { cache: "no-store" });
+      const response = await fetch(experience === "ERH" ? "/api/grp/receivables?market=elas-recebem-hoje" : "/api/grp/receivables", { cache: "no-store" });
       if (response.status === 401) {
         window.location.href = loginHref;
         return;
@@ -89,7 +92,7 @@ export function GrpDashboard({
 
   useEffect(() => {
     let active = true;
-    fetch("/api/grp/receivables", { cache: "no-store" })
+    fetch(experience === "ERH" ? "/api/grp/receivables?market=elas-recebem-hoje" : "/api/grp/receivables", { cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
           window.location.href = loginHref;
@@ -109,7 +112,7 @@ export function GrpDashboard({
     return () => {
       active = false;
     };
-  }, [loginHref]);
+  }, [experience, loginHref]);
 
   async function issueLink(receivableId: string) {
     setLinks((current) => ({
@@ -215,6 +218,7 @@ export function GrpDashboard({
                     {formatUsd(item.nominalUsdCents)} · {statusLabels[item.status] ?? item.status}
                   </span>
                   <span>
+                    {experience === "GRP" && item.marketName ? item.marketName + " · " : ""}
                     Vencimento {new Date(item.dueAt).toLocaleDateString("pt-BR")}
                     {item.confirmationStatus
                       ? " · confirmação: " + (item.confirmationStatus === "PENDING" ? "pendente" : item.confirmationStatus.toLowerCase())

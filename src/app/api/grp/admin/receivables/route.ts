@@ -10,6 +10,7 @@ import {
   auditEvents,
   clientConfirmations,
   clients,
+  markets,
   receivableVersions,
   receivables,
   users,
@@ -77,10 +78,13 @@ export async function GET(request: Request) {
           confirmationStatus: clientConfirmations.status,
           confirmationExpiresAt: clientConfirmations.expiresAt,
           createdAt: receivables.createdAt,
+          marketName: markets.name,
+          marketSlug: markets.slug,
         })
         .from(receivables)
         .innerJoin(users, eq(users.id, receivables.requesterId))
         .innerJoin(clients, eq(clients.id, receivables.clientId))
+        .leftJoin(markets, eq(markets.id, receivables.marketId))
         .innerJoin(
           receivableVersions,
           and(
@@ -113,6 +117,8 @@ export async function GET(request: Request) {
             confirmationStatus: row.confirmationStatus,
             confirmationExpiresAt: row.confirmationExpiresAt?.toISOString() ?? null,
             createdAt: row.createdAt.toISOString(),
+            marketName: row.marketName,
+            marketSlug: row.marketSlug,
           })),
         },
         { headers },

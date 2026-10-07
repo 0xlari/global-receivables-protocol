@@ -57,6 +57,25 @@ async function main() {
       ON "solana_auth_challenges" ("user_id")
     `;
 
+    await sql`
+      INSERT INTO "markets"
+        ("id", "slug", "name", "geography_code", "status", "operator_name", "settlement_asset", "rules_version", "protocol_fee_bps")
+      VALUES
+        ('market_erh_br_v1', 'elas-recebem-hoje', 'Elas Recebem Hoje', 'BR', 'ACTIVE', 'Elas Recebem Hoje', 'USDC', 'erh-v1', 50),
+        ('market_grp_direct_v1', 'grp-direct', 'GRP Direct', 'GLOBAL', 'SANDBOX', 'GRP', 'USDC', 'grp-v1', 50)
+      ON CONFLICT ("id") DO UPDATE SET
+        "name" = EXCLUDED."name",
+        "status" = EXCLUDED."status",
+        "protocol_fee_bps" = EXCLUDED."protocol_fee_bps",
+        "updated_at" = now()
+    `;
+
+    await sql`
+      UPDATE "receivables"
+      SET "market_id" = 'market_erh_br_v1'
+      WHERE "market_id" IS NULL
+    `;
+
     const [table] = await sql<{ exists: boolean }[]>`
       SELECT EXISTS (
         SELECT 1
@@ -83,6 +102,8 @@ async function main() {
     console.log("GRP auth schema ready.");
     console.log("- users.solana_wallet: OK");
     console.log("- solana_auth_challenges: OK");
+    console.log("- markets: ERH + GRP Direct seeded");
+    console.log("- receivables.market_id: backfilled");
   } finally {
     await sql.end();
   }

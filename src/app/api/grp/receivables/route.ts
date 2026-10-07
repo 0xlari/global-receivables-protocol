@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { clientConfirmations, clients, receivables, receivableVersions } from "@/db/schema";
+import { clientConfirmations, clients, markets, receivables, receivableVersions } from "@/db/schema";
 import { paymentPurposes } from "@/domain/receivable";
 import { submitReceivableWithinTransaction } from "@/db/repositories/receivable-repository";
 import { assertJsonPayloadSize, assertSameOrigin, enforceRateLimit } from "@/lib/api-security";
@@ -42,6 +42,8 @@ export async function GET(request: Request) {
     return await withSessionProfile(request, async ({ profile, db }) => {
       enforceRateLimit(`grp:receivable:read:${profile.userId}`, 60);
 
+      const marketSlug = new URL(request.url).searchParams.get("market");
+
       const rows = await db
         .select({
           id: receivables.id,
@@ -54,6 +56,9 @@ export async function GET(request: Request) {
           purpose: receivableVersions.paymentPurpose,
           confirmationStatus: clientConfirmations.status,
           confirmationExpiresAt: clientConfirmations.expiresAt,
+          marketId: receivables.marketId,
+          marketSlug: markets.slug,
+          marketName: markets.name,
         })
         .from(receivables)
         .innerJoin(
@@ -63,6 +68,7 @@ export async function GET(request: Request) {
             eq(receivableVersions.version, receivables.version),
           ),
         )
+        .leftJoin(markets, eq(markets.id, receivables.marketId))
         .leftJoin(
           clientConfirmations,
           and(
@@ -70,7 +76,11 @@ export async function GET(request: Request) {
             eq(clientConfirmations.receivableVersion, receivables.version),
           ),
         )
-        .where(eq(receivables.requesterId, profile.userId))
+        .where(
+          marketSlug
+            ? and(eq(receivables.requesterId, profile.userId), eq(markets.slug, marketSlug))
+            : eq(receivables.requesterId, profile.userId),
+        )
         .orderBy(desc(receivables.createdAt));
 
       return NextResponse.json(
@@ -86,6 +96,9 @@ export async function GET(request: Request) {
             updatedAt: row.updatedAt.toISOString(),
             confirmationStatus: row.confirmationStatus,
             confirmationExpiresAt: row.confirmationExpiresAt?.toISOString() ?? null,
+            marketId: row.marketId,
+            marketSlug: row.marketSlug,
+            marketName: row.marketName,
           })),
         },
         { headers },
@@ -118,6 +131,7 @@ export async function POST(request: Request) {
       }
 
       const now = new Date();
+      const marketId = body.experience === "ERH" ? "market_erh_br_v1" : "market_grp_direct_v1";
       const result = await db.transaction(async (tx) => {
         const clientId = randomUUID();
         await tx.insert(clients).values({
@@ -129,6 +143,7 @@ export async function POST(request: Request) {
         return submitReceivableWithinTransaction(tx, {
           requesterId: profile.userId,
           clientId,
+          marketId,
         paymentDescription: body.paymentDescription,
         paymentPurpose: body.paymentPurpose,
         nominalUsdCents: BigInt(body.nominalUsdCents),
@@ -161,6 +176,8 @@ export async function POST(request: Request) {
         nominalUsdCents: body.nominalUsdCents,
         dueAt: new Date(`${body.dueDate}T12:00:00.000Z`).toISOString(),
         originatorWallet,
+        marketId,
+        marketSlug: body.experience === "ERH" ? "elas-recebem-hoje" : "grp-direct",
       }, { status: 201, headers });
     });
   } catch (error) {

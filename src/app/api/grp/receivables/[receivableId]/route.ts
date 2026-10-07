@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { clientConfirmations, clients, receivableVersions, receivables } from "@/db/schema";
+import { clientConfirmations, clients, markets, receivableVersions, receivables } from "@/db/schema";
 import { withSessionProfile } from "@/lib/app-session";
 
 export const runtime = "nodejs";
@@ -33,6 +33,9 @@ export async function GET(
           payerCountry: clients.countryCode,
           confirmationStatus: clientConfirmations.status,
           confirmationExpiresAt: clientConfirmations.expiresAt,
+          marketId: receivables.marketId,
+          marketSlug: markets.slug,
+          marketName: markets.name,
         })
         .from(receivables)
         .innerJoin(clients, eq(clients.id, receivables.clientId))
@@ -43,6 +46,7 @@ export async function GET(
             eq(receivableVersions.version, receivables.version),
           ),
         )
+        .leftJoin(markets, eq(markets.id, receivables.marketId))
         .leftJoin(
           clientConfirmations,
           and(
@@ -76,6 +80,9 @@ export async function GET(
           evidenceHash: row.evidenceHash,
           confirmationStatus: row.confirmationStatus,
           confirmationExpiresAt: row.confirmationExpiresAt?.toISOString() ?? null,
+          marketId: row.marketId,
+          marketSlug: row.marketSlug,
+          marketName: row.marketName,
         },
       }, { headers });
     });

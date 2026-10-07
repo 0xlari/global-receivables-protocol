@@ -188,6 +188,15 @@ export const lrpProjectionRunStatus = pgEnum("lrp_projection_run_status", [
   "FAILED",
 ]);
 
+export const marketStatus = pgEnum("market_status", [
+  "PROPOSED",
+  "SANDBOX",
+  "ACTIVE",
+  "PAUSED",
+  "SUSPENDED",
+  "RETIRED",
+]);
+
 const createdAt = timestamp("created_at", {
   mode: "date",
   withTimezone: true,
@@ -379,6 +388,28 @@ export const clients = pgTable("clients", {
   createdAt,
   updatedAt,
 });
+
+export const markets = pgTable(
+  "markets",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    geographyCode: text("geography_code").notNull(),
+    status: marketStatus("status").notNull().default("PROPOSED"),
+    operatorName: text("operator_name"),
+    operatorWallet: text("operator_wallet"),
+    settlementAsset: text("settlement_asset").notNull().default("USDC"),
+    rulesVersion: text("rules_version").notNull().default("v1"),
+    protocolFeeBps: integer("protocol_fee_bps").notNull().default(50),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("markets_status_idx").on(table.status),
+    check("markets_protocol_fee_non_negative", sql`${table.protocolFeeBps} >= 0`),
+  ],
+);
 
 export const identityEvidences = pgTable(
   "identity_evidences",
@@ -598,6 +629,8 @@ export const receivables = pgTable(
     clientId: text("client_id")
       .notNull()
       .references(() => clients.id, { onDelete: "restrict" }),
+    marketId: text("market_id")
+      .references(() => markets.id, { onDelete: "restrict" }),
     contractAsset: assetCode("contract_asset")
       .notNull()
       .default("USD_REFERENCE"),
@@ -622,6 +655,7 @@ export const receivables = pgTable(
       sql`${table.contractAsset} = 'USD_REFERENCE'::asset_code`,
     ),
     index("receivables_requester_idx").on(table.requesterId),
+    index("receivables_market_idx").on(table.marketId),
   ],
 );
 

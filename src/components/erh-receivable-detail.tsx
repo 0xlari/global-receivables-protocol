@@ -17,6 +17,9 @@ type Receivable = {
   evidenceHash: string | null;
   confirmationStatus: string | null;
   confirmationExpiresAt: string | null;
+  marketId?: string | null;
+  marketSlug?: string | null;
+  marketName?: string | null;
 };
 
 const statusLabels: Record<string, string> = {
@@ -55,6 +58,9 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
       }
       const body = await response.json() as { receivable?: Receivable; error?: string };
       if (!response.ok || !body.receivable) throw new Error(body.error ?? "Não foi possível carregar este recebível.");
+      if (body.receivable.marketSlug && body.receivable.marketSlug !== "elas-recebem-hoje") {
+        throw new Error("Este recebível pertence a outro Market do GRP.");
+      }
       setItem(body.receivable);
       setState("ready");
     } catch (error) {
@@ -113,6 +119,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         <div className="profile-items">
           <div><strong>Valor</strong><span>{formatUsd(item.nominalUsdCents)}</span></div>
           <div><strong>Vencimento</strong><span>{new Date(item.dueAt).toLocaleDateString("pt-BR")}</span></div>
+          <div><strong>Market</strong><span>{item.marketName ?? "Elas Recebem Hoje"}</span></div>
           <div><strong>País do pagador</strong><span>{item.payerCountry}</span></div>
           <div><strong>Confirmação do pagador</strong><span>{item.confirmationStatus ?? "não iniciada"}</span></div>
           <div><strong>Criado em</strong><span>{new Date(item.createdAt).toLocaleString("pt-BR")}</span></div>

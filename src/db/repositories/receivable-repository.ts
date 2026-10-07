@@ -61,6 +61,7 @@ function tokenHashOrInvalid(rawToken: string) {
 export type ReceivableSubmissionInput = Readonly<{
   requesterId: string;
   clientId: string;
+  marketId?: string | null;
   paymentDescription: string;
   paymentPurpose: PaymentPurpose;
   nominalUsdCents: bigint;
@@ -101,6 +102,7 @@ export async function submitReceivableWithinTransaction<THKT extends PgQueryResu
       id: receivableId,
       requesterId: input.requesterId,
       clientId: input.clientId,
+      marketId: input.marketId ?? null,
       nominalAmount: input.nominalUsdCents,
       dueAt: input.dueAt,
       evidenceHash: input.evidence.sha256,
