@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
+  experience: z.enum(["GRP", "ERH"]).default("GRP"),
   paymentDescription: z.string().trim().min(3).max(160),
   paymentPurpose: z.enum(paymentPurposes),
   nominalUsdCents: z.string().regex(/^[1-9][0-9]{0,8}$/),
@@ -147,9 +148,14 @@ export async function POST(request: Request) {
         });
       });
 
+      const confirmationUrl = new URL(result.confirmationUrl);
+      if (body.experience === "ERH") {
+        confirmationUrl.pathname = "/elas-recebem-hoje/confirmar";
+      }
+
       return NextResponse.json({
         receivableId: result.receivableId,
-        confirmationUrl: result.confirmationUrl,
+        confirmationUrl: confirmationUrl.toString(),
         requesterSolanaWallet: profile.solanaWallet,
         evidenceHash: body.evidence.sha256,
         nominalUsdCents: body.nominalUsdCents,
