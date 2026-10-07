@@ -42,9 +42,14 @@ export async function POST(
         confirmationBaseUrl: new URL(request.url).origin,
       });
 
+      const confirmationUrl = new URL(result.confirmationUrl);
+      if (new URL(request.url).searchParams.get("experience") === "erh") {
+        confirmationUrl.pathname = "/elas-recebem-hoje/confirmar";
+      }
+
       return NextResponse.json(
         {
-          confirmationUrl: result.confirmationUrl,
+          confirmationUrl: confirmationUrl.toString(),
           expiresAt: result.expiresAt.toISOString(),
           confirmationStatus: result.confirmationStatus,
         },
