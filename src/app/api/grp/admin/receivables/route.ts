@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   try {
     return await withSessionProfile(request, async ({ profile, db }) => {
       assertGrpAdmin(profile);
-      enforceRateLimit(\`grp:admin:receivables:\${profile.userId}\`, 60);
+      enforceRateLimit(`grp:admin:receivables:${profile.userId}`, 60);
 
       const rows = await db
         .select({
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 
     return await withSessionProfile(request, async ({ profile, db }) => {
       assertGrpAdmin(profile);
-      enforceRateLimit(\`grp:admin:review:\${profile.userId}\`, 20);
+      enforceRateLimit(`grp:admin:review:${profile.userId}`, 20);
 
       const connection = new Connection(rpcUrl(), "confirmed");
       const signature = await connection.getSignatureStatus(body.signature, {
