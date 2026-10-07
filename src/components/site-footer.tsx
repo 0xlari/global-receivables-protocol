@@ -20,6 +20,7 @@ export function SiteFooter() {
             <Link href="/">Conhecer o GRP</Link>
             <Link href="/elas-recebem-hoje/recebivel">Criar recebível</Link>
             <Link href="/elas-recebem-hoje/painel">Meu painel</Link>
+            <Link href="/elas-recebem-hoje/oportunidades">Oportunidades</Link>
           </div>
         </div>
       </footer>
