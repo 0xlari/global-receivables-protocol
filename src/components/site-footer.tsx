@@ -14,12 +14,12 @@ export function SiteFooter() {
         <div className="shell site-footer__inner">
           <div>
             <Brand variant="erh" />
-            <p>Vertical brasileira powered by Global Receivables Protocol.</p>
+            <p>Antecipação de recebíveis internacionais para profissionais no Brasil.</p>
           </div>
           <div className="site-footer__links" aria-label="Links do rodapé">
             <Link href="/">Conhecer o GRP</Link>
-            <Link href="/recebivel">Criar recebível</Link>
-            <Link href="/pools">Pools</Link>
+            <Link href="/elas-recebem-hoje/recebivel">Criar recebível</Link>
+            <Link href="/elas-recebem-hoje/painel">Meu painel</Link>
           </div>
         </div>
       </footer>
