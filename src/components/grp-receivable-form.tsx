@@ -224,11 +224,12 @@ export function GrpReceivableForm({
     return (
       <section className="demo-success">
         <CheckCircle2 aria-hidden="true" />
-        <span className="kicker">Recebível registrado no GRP</span>
+        <span className="kicker">{experience === "ERH" ? "Recebível registrado" : "Recebível registrado no GRP"}</span>
         <h2>Agora envie o link ao pagador.</h2>
         <p>
-          O recebível já possui estado público na Solana. O pagador verá os dados privados
-          necessários e autorizará a liquidação em USDC com a própria carteira.
+          {experience === "ERH"
+            ? "Seu recebível foi registrado. Agora envie o link privado ao pagador para confirmar os dados e autorizar a liquidação em USDC."
+            : "O recebível já possui estado público na Solana. O pagador verá os dados privados necessários e autorizará a liquidação em USDC com a própria carteira."}
         </p>
         <label>
           Link privado de confirmação
@@ -292,8 +293,10 @@ export function GrpReceivableForm({
       <div className="demo-mode-banner">
         <WalletCards aria-hidden="true" />
         <span>
-          <strong>Global Receivables Protocol</strong> Os dados privados ficam no banco.
-          Somente o compromisso financeiro e o ciclo do recebível vão para a Solana.
+          <strong>{experience === "ERH" ? "Elas Recebem Hoje" : "Global Receivables Protocol"}</strong>{" "}
+          {experience === "ERH"
+            ? "Seus dados privados ficam protegidos. A infraestrutura GRP registra somente o compromisso financeiro necessário na Solana."
+            : "Os dados privados ficam no banco. Somente o compromisso financeiro e o ciclo do recebível vão para a Solana."}
         </span>
       </div>
 
@@ -350,7 +353,7 @@ export function GrpReceivableForm({
       {error ? <p className="form-error">{error}</p> : null}
 
       <button className="button button--primary" disabled={working}>
-        {working ? "Preparando recebível…" : "Criar recebível no GRP"}
+        {working ? "Preparando recebível…" : experience === "ERH" ? "Criar recebível" : "Criar recebível no GRP"}
       </button>
     </form>
   );
