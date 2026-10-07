@@ -157,17 +157,20 @@ export function GrpDashboard({
     <div className="dashboard">
       <section className="dashboard-hero">
         <div>
-          <span className="eyebrow"><WalletCards size={16} /> Global Receivables Protocol</span>
-          <h1>Seus recebíveis no GRP.</h1>
+          <span className="eyebrow"><WalletCards size={16} /> {experience === "ERH" ? "Elas Recebem Hoje" : "Global Receivables Protocol"}</span>
+          <h1>{experience === "ERH" ? "Seus recebíveis." : "Seus recebíveis no GRP."}</h1>
           <p>
-            Acompanhe o estado do recebível desde a criação até a confirmação do pagador,
-            validação, financiamento e liquidação.
+            {experience === "ERH"
+              ? "Acompanhe seus recebíveis desde a criação até a confirmação do pagador, validação, financiamento e liquidação."
+              : "Acompanhe o estado do recebível desde a criação até a confirmação do pagador, validação, financiamento e liquidação."}
           </p>
         </div>
         <div className="dashboard-limit">
           <span>Recebíveis registrados</span>
           <strong>{items.length}</strong>
-          <small>Dados privados no banco + estado financeiro verificável no GRP.</small>
+          <small>{experience === "ERH"
+            ? "Seus dados privados permanecem protegidos; a infraestrutura GRP registra o estado financeiro necessário."
+            : "Dados privados no banco + estado financeiro verificável no GRP."}</small>
         </div>
       </section>
 
