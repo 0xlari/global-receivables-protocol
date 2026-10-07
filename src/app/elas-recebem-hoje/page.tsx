@@ -54,7 +54,7 @@ export default function ElasRecebemHojePage() {
               para profissionais no Brasil, usando a infraestrutura do GRP por baixo.
             </p>
             <div className="hero__actions">
-              <ButtonLink href="/entrar?next=/recebivel">
+              <ButtonLink href="/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/recebivel">
                 Criar recebível <ArrowRight aria-hidden="true" size={18} />
               </ButtonLink>
               <ButtonLink href="/" variant="secondary">
@@ -117,7 +117,7 @@ export default function ElasRecebemHojePage() {
         </div>
       </section>
 
-      <section className="section section--steps">
+      <section id="como-funciona" className="section section--steps">
         <div className="shell">
           <div className="section-heading">
             <div>
