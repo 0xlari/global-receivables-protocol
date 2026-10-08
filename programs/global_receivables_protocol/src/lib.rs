@@ -105,35 +105,19 @@ pub mod global_receivables_protocol {
             GrpError::InvalidReceivableState
         );
 
-        // The payer signs this outer transaction. In the same atomic transaction,
-        // the Token Program grants the receivable-specific GRP PDA a bounded
-        // delegate allowance over the payer's USDC token account.
-        let approve_accounts = ApproveChecked {
-            to: ctx.accounts.payer_token_account.to_account_info(),
-            mint: ctx.accounts.usdc_mint.to_account_info(),
-            delegate: ctx.accounts.payer_authorization.to_account_info(),
-            authority: ctx.accounts.payer.to_account_info(),
-        };
-        let approve_ctx = CpiContext::new(
-            ctx.accounts.token_program.key(),
-            approve_accounts,
-        );
-        token::approve_checked(
-            approve_ctx,
-            authorized_amount,
-            ctx.accounts.usdc_mint.decimals,
-        )?;
-
+        // The payer signs a commitment only. No token delegate or future debit
+        // authority is granted at confirmation time. Settlement requires a new
+        // payer signature when payment is actually made.
         let now = Clock::get()?.unix_timestamp;
 
         let authorization = &mut ctx.accounts.payer_authorization;
         authorization.receivable = ctx.accounts.receivable.key();
         authorization.payer_wallet = ctx.accounts.payer.key();
-        authorization.payer_token_account = ctx.accounts.payer_token_account.key();
-        authorization.usdc_mint = ctx.accounts.usdc_mint.key();
+        authorization.payer_token_account = Pubkey::default();
+        authorization.usdc_mint = ctx.accounts.config.usdc_mint;
         authorization.authorized_amount = authorized_amount;
         authorization.remaining_amount = authorized_amount;
-        authorization.settlement_vault = ctx.accounts.settlement_vault.key();
+        authorization.settlement_vault = Pubkey::default();
         authorization.status = PayerAuthorizationStatus::Active;
         authorization.had_payment_failure = false;
         authorization.created_at = now;
@@ -142,9 +126,9 @@ pub mod global_receivables_protocol {
 
         let receivable = &mut ctx.accounts.receivable;
         receivable.payer_wallet = ctx.accounts.payer.key();
-        receivable.payer_token_account = ctx.accounts.payer_token_account.key();
+        receivable.payer_token_account = Pubkey::default();
         receivable.payer_authorization = authorization.key();
-        receivable.settlement_vault = ctx.accounts.settlement_vault.key();
+        receivable.settlement_vault = Pubkey::default();
         receivable.payer_commitment_hash = payer_commitment_hash;
         receivable.settlement_amount_usdc = authorized_amount;
         receivable.status = ReceivableStatus::UnderValidation;
@@ -423,80 +407,13 @@ pub mod global_receivables_protocol {
             GrpError::AlreadySettled
         );
 
-        let remaining = ctx.accounts.payer_authorization.remaining_amount;
-        let delegate_is_valid = matches!(
-            ctx.accounts.payer_token_account.delegate,
-            COption::Some(delegate) if delegate == ctx.accounts.payer_authorization.key()
-        ) && ctx.accounts.payer_token_account.delegated_amount >= remaining;
-
-        if ctx.accounts.payer_token_account.amount < remaining || !delegate_is_valid {
-            ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
-            ctx.accounts.payer_authorization.had_payment_failure = true;
-            ctx.accounts.payer_authorization.updated_at = now;
-            ctx.accounts.receivable.status = ReceivableStatus::Due;
-            ctx.accounts.receivable.updated_at = now;
-            return Ok(());
-        }
-
-        let receivable_key = ctx.accounts.receivable.key();
-        let bump = [ctx.accounts.payer_authorization.bump];
-        let signer_seeds: &[&[u8]] = &[
-            b"payer-authorization",
-            receivable_key.as_ref(),
-            &bump,
-        ];
-
-        let transfer_accounts = TransferChecked {
-            from: ctx.accounts.payer_token_account.to_account_info(),
-            mint: ctx.accounts.usdc_mint.to_account_info(),
-            to: ctx.accounts.settlement_vault.to_account_info(),
-            authority: ctx.accounts.payer_authorization.to_account_info(),
-        };
-        let signer = &[signer_seeds];
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.key(),
-            transfer_accounts,
-            signer,
-        );
-        token::transfer_checked(
-            transfer_ctx,
-            remaining,
-            ctx.accounts.usdc_mint.decimals,
-        )?;
-
-        ctx.accounts.payer_authorization.remaining_amount = 0;
-        ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::Settled;
+        // GRP never pulls funds from the payer wallet. At/after due date this
+        // instruction only marks the receivable as payment-due. Actual payment
+        // happens through manual_repayment, signed by the payer.
+        ctx.accounts.payer_authorization.status = PayerAuthorizationStatus::PaymentDue;
         ctx.accounts.payer_authorization.updated_at = now;
-
-        ctx.accounts.pool.repaid_amount = ctx.accounts.pool
-            .repaid_amount
-            .checked_add(remaining)
-            .ok_or(GrpError::ArithmeticOverflow)?;
-        let was_defaulted = ctx.accounts.receivable.status == ReceivableStatus::Defaulted
-            || ctx.accounts.pool.status == PoolStatus::Defaulted
-            || ctx.accounts.payer_authorization.status == PayerAuthorizationStatus::Defaulted;
-
-        ctx.accounts.pool.status = if was_defaulted {
-            PoolStatus::Cured
-        } else {
-            PoolStatus::Settled
-        };
-        ctx.accounts.pool.updated_at = now;
-
-        ctx.accounts.receivable.status = if was_defaulted {
-            ReceivableStatus::PaidAfterDefault
-        } else {
-            ReceivableStatus::Paid
-        };
+        ctx.accounts.receivable.status = ReceivableStatus::Due;
         ctx.accounts.receivable.updated_at = now;
-
-        apply_passport_settlement(
-            &mut ctx.accounts.receivable,
-            &ctx.accounts.payer_authorization,
-            &mut ctx.accounts.passport,
-            now,
-        )?;
-
         Ok(())
     }
 
@@ -847,32 +764,6 @@ pub struct RecordPayerConfirmation<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    #[account(
-        address = config.usdc_mint @ GrpError::InvalidUsdcMint
-    )]
-    pub usdc_mint: Account<'info, Mint>,
-
-    #[account(
-        init,
-        payer = payer,
-        seeds = [
-            b"settlement-vault",
-            receivable.key().as_ref()
-        ],
-        bump,
-        token::mint = usdc_mint,
-        token::authority = payer_authorization
-    )]
-    pub settlement_vault: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        token::mint = usdc_mint,
-        token::authority = payer
-    )]
-    pub payer_token_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 

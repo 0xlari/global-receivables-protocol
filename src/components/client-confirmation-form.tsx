@@ -251,7 +251,6 @@ export function ClientConfirmationForm() {
         payer,
         requester,
         receivableId: details.receivableId,
-        usdcMint,
         authorizedAmount: usdcMinorAmount,
         payerCommitmentHash: commitment,
       });
@@ -268,7 +267,7 @@ export function ClientConfirmationForm() {
     } catch (error) {
       const raw = error instanceof Error
         ? error.message
-        : "Não foi possível registrar a autorização na Solana.";
+        : "Não foi possível registrar o compromisso na Solana.";
       const friendly =
         raw === "GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET"
           ? "O protocolo GRP não foi encontrado na Solana Devnet. Confirme que a carteira está em Devnet, não em Testnet."
@@ -277,9 +276,9 @@ export function ClientConfirmationForm() {
             : raw === "GRP_USDC_MINT_NOT_FOUND_ON_DEVNET"
               ? "O USDC configurado para o GRP não existe na Devnet."
               : raw === "PAYER_NEEDS_DEVNET_SOL"
-                ? "A carteira do pagador precisa de SOL na Solana Devnet para criar a autorização e o vault do recebível."
+                ? "A carteira do pagador precisa de um pequeno saldo de SOL na Solana Devnet para registrar o compromisso."
                 : /simulation|revert|failed to simulate|insufficient funds/i.test(raw)
-                  ? "A carteira não conseguiu simular a transação na Solana Devnet. Confirme: rede Devnet selecionada, algum SOL de Devnet para taxas/rent e USDC do mint configurado pelo GRP."
+                  ? "A carteira não conseguiu simular a transação na Solana Devnet. Confirme a rede Devnet e um pequeno saldo de SOL para taxas/rent."
                   : raw;
       setMessage(friendly);
       setState("error");
@@ -318,10 +317,10 @@ export function ClientConfirmationForm() {
       <section className="confirmation-form">
         <div className="confirmation-form__security">
           <ShieldCheck />
-          O recebível foi confirmado. Falta autorizar a carteira que fará o pagamento.
+          O recebível foi confirmado. Registre agora o compromisso on-chain.
         </div>
 
-        <h2>Autorize o pagamento em USDC</h2>
+        <h2>Confirme o compromisso de pagamento</h2>
         <p>
           Sua carteira continuará sob seu controle. O GRP receberá uma autorização limitada a
           este recebível e ao valor abaixo.
@@ -331,12 +330,12 @@ export function ClientConfirmationForm() {
           <div><dt>Recebível</dt><dd>{details.paymentDescription}</dd></div>
           <div><dt>Valor máximo</dt><dd>USDC {amount}</dd></div>
           <div><dt>Vencimento</dt><dd>{new Date(details.dueAt).toLocaleDateString("pt-BR")}</dd></div>
-          <div><dt>Autorização</dt><dd>Somente este recebível</dd></div>
+          <div><dt>Compromisso</dt><dd>Sem débito automático</dd></div>
         </dl>
 
         <div className="confirmation-form__security">
           <LockKeyhole />
-          Rede obrigatória: Solana Devnet. A transação cria a autorização on-chain e o limite de USDC. Nenhum USDC é transferido agora.
+          Rede obrigatória: Solana Devnet. Esta transação registra somente o compromisso do pagador. Nenhum USDC é transferido e nenhuma permissão de débito futuro é criada.
         </div>
 
         {state === "error" && message ? <p className="form-error">{message}</p> : null}

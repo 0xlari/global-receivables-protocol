@@ -307,15 +307,15 @@ The signature binds the payer wallet to, at minimum:
 
 The payer wallet public key becomes part of the public receivable state. Full payer identity remains private off-chain.
 
-For GRP v0.1, the same payer wallet must authorize **a delegated USDC allowance at confirmation time**. The payer's USDC token account approves a GRP-controlled PDA as delegate for the exact maximum amount required for settlement.
+For GRP v0.1, the same payer wallet must authorize **a commitmentd USDC allowance at confirmation time**. The payer's USDC token account approves a GRP-controlled PDA as commitment for the exact maximum amount required for settlement.
 
-At or after the due date, a keeper (or any permissionless caller) can invoke the GRP settlement instruction. The program verifies the receivable state, due date, mint, amount and committed payer wallet, then uses the PDA delegate authority through a Token Program CPI to transfer the authorized USDC into the settlement/pool vault.
+At or after the due date, a keeper (or any permissionless caller) can invoke the GRP settlement instruction. The program verifies the receivable state, due date, mint, amount and committed payer wallet, then uses the PDA commitment authority through a Token Program CPI to transfer the authorized USDC into the settlement/pool vault.
 
-This creates a pull-payment model: the payer does not need to return and sign again on the due date if the delegation is still valid.
+This creates a pull-payment model: the payer does not need to return and sign again on the due date if the payer commitment is still valid.
 
-Important limitation: SPL token delegation is an allowance, not a balance lock. Before settlement the payer can revoke the delegate or move the USDC elsewhere. Therefore delegated payment improves enforceability/automation but does not guarantee funds. A production design may add collateral, reserve requirements or escrow.
+Important limitation: SPL token payer commitment is an allowance, not a balance lock. Before settlement the payer can revoke the commitment or move the USDC elsewhere. Therefore commitmentd payment improves enforceability/automation but does not guarantee funds. A production design may add collateral, reserve requirements or escrow.
 
-The private confirmation link proves access to the intended payer flow; the wallet signature proves control of the wallet committed to repayment; the token delegate approval grants the program bounded transfer authority.
+The private confirmation link proves access to the intended payer flow; the wallet signature proves control of the wallet committed to repayment; the token commitment approval grants the program bounded transfer authority.
 
 ### Originator / validator
 
@@ -371,12 +371,12 @@ The first Anchor program should prioritize a complete happy path:
 
 1. `initialize_protocol`
 2. `create_receivable`
-3. `record_payer_confirmation` — requires the committed payer wallet as signer and installs a bounded USDC delegate allowance for the GRP settlement PDA
+3. `record_payer_confirmation` — requires the committed payer wallet as signer and installs a bounded USDC commitment allowance for the GRP settlement PDA
 4. `record_validation`
 5. `create_pool`
 6. `fund_pool`
 7. `accept_partial_funding` if needed
-8. `settle_receivable` — permissionless after due date; uses the pre-approved GRP PDA delegate to pull the bounded USDC amount from the committed payer token account
+8. `settle_receivable` — permissionless after due date; uses the pre-approved GRP PDA commitment to pull the bounded USDC amount from the committed payer token account
 9. `distribute`
 10. `update_passport` should happen as part of settlement/distribution logic, not as a free-standing requester action
 
@@ -470,10 +470,10 @@ The demo should prefer one real, understandable flow over many partially impleme
 Solana programs do not wake up by themselves when a timestamp is reached. GRP therefore separates **authorization** from **execution**:
 
 1. during payer confirmation, the payer signs the receivable commitment;
-2. in the same flow, the payer approves a GRP settlement PDA as delegate on the payer's USDC token account for a bounded amount;
-3. the receivable stores the committed payer wallet, payer token account, delegated maximum and due date;
+2. in the same flow, the payer approves a GRP settlement PDA as commitment on the payer's USDC token account for a bounded amount;
+3. the receivable stores the committed payer wallet, payer token account, commitmentd maximum and due date;
 4. at or after `due_at`, a keeper/bot or any permissionless caller submits `settle_receivable`;
-5. the program validates all constraints and invokes the SPL Token Program with the PDA as delegate authority;
+5. the program validates all constraints and invokes the SPL Token Program with the PDA as commitment authority;
 6. funds move to the protocol settlement/pool vault;
 7. settlement state and Receivable Passport are updated.
 
@@ -481,11 +481,11 @@ Safety requirements:
 
 - use `ApproveChecked` / checked token operations where available;
 - bind the canonical USDC mint in `ProtocolConfig`;
-- delegation amount must be capped to the receivable settlement maximum;
+- payer commitment amount must be capped to the receivable settlement maximum;
 - the program must never transfer before `due_at`;
 - settlement must be idempotent and single-use;
-- partial balance / revoked delegate must fail safely and move the receivable to an explicit payment-failure/overdue path;
-- the delegate PDA must only authorize GRP settlement instructions and must not expose arbitrary transfer functionality.
+- partial balance / revoked commitment must fail safely and move the receivable to an explicit payment-failure/overdue path;
+- the commitment PDA must only authorize GRP settlement instructions and must not expose arbitrary transfer functionality.
 
 
 ## Repayment fallback and overdue recovery
@@ -496,13 +496,13 @@ GRP v0.1 must support two repayment paths for the payer:
 
 At or after the due date, a keeper/backend calls `settle_receivable`.
 
-The program attempts to pull the authorized USDC amount from the committed payer token account through the previously approved delegate PDA.
+The program attempts to pull the authorized USDC amount from the committed payer token account through the previously approved commitment PDA.
 
 Possible outcomes:
 
 - success -> settlement continues normally;
 - insufficient balance -> receivable becomes `PAYMENT_DUE` / `PAYMENT_FAILED`;
-- delegate revoked / allowance insufficient -> receivable becomes `PAYMENT_DUE` / `PAYMENT_FAILED`;
+- commitment revoked / allowance insufficient -> receivable becomes `PAYMENT_DUE` / `PAYMENT_FAILED`;
 - token account invalid or wrong mint -> fail safely.
 
 A failed pull must not mark the receivable as paid.
@@ -564,3 +564,19 @@ If the payer later settles the full remaining obligation:
 - the settlement is also counted as a late settlement
 
 This preserves both facts: the obligation defaulted, and it was later cured.
+
+
+## Payer commitment — no automatic debit
+
+As of ADR-059, payer confirmation is commitment-only:
+
+1. payer reviews the private receivable link;
+2. payer signs `record_payer_confirmation`;
+3. GRP stores the payer wallet, commitment hash and committed settlement amount;
+4. no SPL token delegate is created;
+5. no USDC is transferred at confirmation;
+6. settlement requires a new payer signature when funds are actually paid.
+
+The existing `PayerAuthorization` account name is retained for compatibility in this program version, but its role is now a payer commitment record.
+
+`settle_receivable` never pulls funds. It only transitions a due receivable into payment-due state. `manual_repayment` is the payer-signed transfer path.

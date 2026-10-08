@@ -473,3 +473,14 @@
 - **Build on GRP:** proposta e onboarding de novos Markets; não ativa Markets automaticamente.
 - **Markets:** diretório de Markets aprovados/sandbox/coming soon. Quando houver múltiplos Markets, o CTA Launch deve levar primeiro ao diretório, e não diretamente a um formulário genérico de recebível.
 - **Operação:** operadores aprovados terão um Operator Console; a autoridade do protocolo terá uma área administrativa para Market review, rails, fees, treasury, reserve e grants.
+
+
+## ADR-059 — confirmação do pagador sem token delegate
+
+- **Data:** 2026-10-08
+- **Status:** aprovada
+- **Decisão:** a confirmação do pagador registra apenas um compromisso on-chain. O GRP não recebe delegate allowance nem qualquer permissão para retirar USDC futuramente da carteira do pagador.
+- **UX e segurança:** a carteira do pagador permanece integralmente sob controle do pagador. A confirmação não movimenta USDC e não cria autorização de débito automático.
+- **Liquidação:** o pagamento exige uma nova assinatura do pagador no momento da liquidação, usando o fluxo de repayment assinado pelo próprio payer.
+- **Compatibilidade:** o PDA historicamente chamado `PayerAuthorization` permanece nesta versão por compatibilidade de estado/seed, mas semanticamente passa a representar o **Payer Commitment**.
+- **Consequência:** `settle_receivable` não pode realizar pull automático. Ao atingir o vencimento, ele apenas marca o recebível como due/payment-due; a transferência de USDC acontece somente com assinatura explícita do pagador.

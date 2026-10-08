@@ -212,11 +212,7 @@ describe("GRP on-chain happy path", () => {
         receivable: receivablePda,
         payerAuthorization: payerAuthorizationPda,
         payer: payer.publicKey,
-        usdcMint,
-        settlementVault: settlementVaultPda,
-        payerTokenAccount: payerAta.address,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
+        usdcMint,        systemProgram: SystemProgram.programId,
       })
       .signers([payer])
       .rpc();

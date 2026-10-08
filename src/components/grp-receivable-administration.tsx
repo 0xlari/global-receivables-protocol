@@ -268,7 +268,7 @@ export function GrpReceivableAdministration() {
           : raw === "GRP_VALIDATION_STATE_NOT_FOUND_ONCHAIN"
             ? "A transação foi enviada, mas o estado de validação ainda não apareceu na Devnet. Clique em Atualizar; se a decisão já estiver on-chain, o botão mudará para Sincronizar."
             : /simulation|failed to simulate|revert/i.test(raw)
-              ? "A Solana recusou a simulação. Confirme se a autorização do pagador foi concluída na Devnet e se a carteira authority possui SOL."
+              ? "A Solana recusou a simulação. Confirme se a compromisso do pagador foi concluída na Devnet e se a carteira authority possui SOL."
               : raw;
 
       setReview((current) => ({
@@ -328,7 +328,7 @@ export function GrpReceivableAdministration() {
                   <div><dt>Pagador</dt><dd>{item.payerCountry}</dd></div>
                   <div><dt>Confirmação off-chain</dt><dd>{item.confirmationStatus ?? "não encontrada"}</dd></div>
                   <div><dt>Recebível Devnet</dt><dd>{item.onchain.receivableExists ? "encontrado" : "não encontrado"}</dd></div>
-                  <div><dt>Autorização USDC</dt><dd>{item.onchain.payerAuthorizationExists ? "on-chain" : "pendente"}</dd></div>
+                  <div><dt>Compromisso do pagador</dt><dd>{item.onchain.payerAuthorizationExists ? "on-chain" : "pendente"}</dd></div>
                   <div><dt>Validação on-chain</dt><dd>{item.onchain.validationDecision ?? "ainda não registrada"}</dd></div>
                   <div><dt>Solicitante</dt><dd><code>{short(item.requesterWallet)}</code></dd></div>
                   <div><dt>Validation PDA</dt><dd><code>{short(item.onchain.validationPda)}</code></dd></div>
@@ -342,13 +342,13 @@ export function GrpReceivableAdministration() {
                 ) : ready ? (
                   <div className="confirmation-form__security">
                     <WalletCards size={18} />
-                    Recebível e autorização do pagador encontrados na Devnet. Pronto para decisão.
+                    Recebível e compromisso do pagador encontrados na Devnet. Pronto para decisão.
                   </div>
                 ) : (
                   <div className="confirmation-form__security">
                     <CircleAlert size={18} />
                     {missingAuthorization
-                      ? "A confirmação foi aceita no banco, mas a autorização USDC do pagador ainda não existe on-chain."
+                      ? "A confirmação foi aceita no banco, mas a compromisso on-chain do pagador ainda não existe on-chain."
                       : "Este recebível ainda não está pronto para validação on-chain."}
                   </div>
                 )}
