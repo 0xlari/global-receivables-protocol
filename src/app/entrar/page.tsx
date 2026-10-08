@@ -4,13 +4,15 @@ import { Fingerprint } from "lucide-react";
 import { SolanaWalletSignIn } from "@/components/solana-wallet-sign-in";
 
 export const metadata: Metadata = {
-  title: "Entrar",
-  description: "Acesso privado com carteira Solana.",
+  title: "Sign in | GRP",
+  description: "Private GRP access with a Solana wallet.",
 };
 
 function safeRedirect(value: string | string[] | undefined) {
   const candidate = Array.isArray(value) ? value[0] : value;
-  return candidate?.startsWith("/") && !candidate.startsWith("//") ? candidate : "/painel";
+  return candidate?.startsWith("/") && !candidate.startsWith("//")
+    ? candidate
+    : "/administracao/grp";
 }
 
 export default async function SignInPage({
@@ -27,11 +29,11 @@ export default async function SignInPage({
         <span className="auth-card__icon">
           <Fingerprint aria-hidden="true" />
         </span>
-        <span className="kicker">Acesso ao GRP</span>
-        <h1 id="auth-title">Entre com sua carteira Solana</h1>
+        <span className="kicker">GRP protocol access</span>
+        <h1 id="auth-title">Sign in with a Solana wallet</h1>
         <p>
-          Sua carteira identifica sua conta no Global Receivables Protocol.
-          A assinatura de login não movimenta SOL nem USDC.
+          This access is for GRP protocol and administrative surfaces. End users should
+          enter through a Market application such as Elas Recebem Hoje.
         </p>
         <SolanaWalletSignIn redirectTo={redirectTo} />
       </section>

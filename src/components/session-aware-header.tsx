@@ -16,14 +16,23 @@ export function SessionAwareNavigation({ mobile = false }: { mobile?: boolean })
     fetch("/api/auth/session", { cache: "no-store" })
       .then(async (response) => {
         if (!active) return;
-        if (!response.ok) return setSession({ status: "anonymous" });
+        if (!response.ok) {
+          setSession({ status: "anonymous" });
+          return;
+        }
         const body = await response.json() as { profile?: { label: string } };
-        setSession({ status: "authenticated", label: body.profile?.label ?? "Connected wallet" });
+        setSession({
+          status: "authenticated",
+          label: body.profile?.label ?? "Connected wallet",
+        });
       })
       .catch(() => {
         if (active) setSession({ status: "anonymous" });
       });
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, [pathname]);
 
   async function signOut() {
@@ -35,18 +44,22 @@ export function SessionAwareNavigation({ mobile = false }: { mobile?: boolean })
 
   return (
     <>
-      <Link href="/como-funciona">How it works</Link>
-      <Link href="/recebivel">Receivables</Link>
-      <Link href="/pools">Pools</Link>
+      <Link href="/como-funciona">Protocol</Link>
+      <Link href="/build-on-grp">Build on GRP</Link>
+      <Link href="/markets">Markets</Link>
+      <Link href="/markets" className={mobile ? undefined : "button button--quiet"}>Launch</Link>
       {session.status === "authenticated" ? (
         <>
-          <Link href="/painel">Dashboard</Link>
-          <Link href="/entrar?trocar=1&next=/painel" title={session.label}>Switch wallet</Link>
-          <button className={mobile ? "mobile-nav__action" : "nav-action"} type="button" onClick={signOut}>Sign out</button>
+          <Link href="/administracao/grp" title={session.label}>Protocol admin</Link>
+          <button
+            className={mobile ? "mobile-nav__action" : "nav-action"}
+            type="button"
+            onClick={signOut}
+          >
+            Sign out
+          </button>
         </>
-      ) : (
-        <Link className={mobile ? undefined : "button button--quiet"} href="/entrar">Sign in</Link>
-      )}
+      ) : null}
     </>
   );
 }

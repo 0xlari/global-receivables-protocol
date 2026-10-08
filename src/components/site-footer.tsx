@@ -32,7 +32,7 @@ export function SiteFooter() {
       <div className="shell site-footer__inner">
         <div>
           <Brand />
-          <p>Programmable infrastructure for global receivables.</p>
+          <p>Programmable infrastructure for global receivables. Markets are the user-facing applications.</p>
         </div>
         <div className="site-footer__links" aria-label="Footer links">
           <Link href="/como-funciona">Protocol</Link>

@@ -1,18 +1,5 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { GrpDashboard } from "@/components/grp-dashboard";
-
-export const metadata: Metadata = {
-  title: "Painel GRP",
-  description: "Acompanhe seus recebíveis no Global Receivables Protocol.",
-};
-
-export default function DashboardPage() {
-  return (
-    <div className="inner-page">
-      <div className="shell">
-        <GrpDashboard />
-      </div>
-    </div>
-  );
+export default function LegacyDashboardRoute() {
+  redirect("/markets");
 }

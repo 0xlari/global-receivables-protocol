@@ -27,7 +27,7 @@ export default function MarketsPage() {
         <div className={styles.directoryInner}>
           <span className={styles.eyebrow}>ACTIVE + UPCOMING</span>
           <h2 className={styles.directoryTitle}>Choose the market context.</h2>
-          <p className={styles.directoryIntro}>Receivables are created inside a Market so the applicable operator, rails, rules and economics are explicit from the beginning.</p>
+          <p className={styles.directoryIntro}>GRP itself is infrastructure. Receivables are created inside a Market so the operator, local rails, rules and economics are explicit from the beginning.</p>
 
           <div className={styles.marketGrid}>
             <article className={styles.marketCard}>
@@ -39,6 +39,7 @@ export default function MarketsPage() {
                 <span>Settlement</span><strong>USDC</strong>
                 <span>Protocol fee</span><strong>0.50%</strong>
                 <span>Protocol</span><strong>GRP v1</strong>
+                <span>Application</span><strong>Elas Recebem Hoje</strong>
               </div>
               <div className={styles.marketActions}>
                 <Link className={styles.primary} href="/elas-recebem-hoje">Enter Market <ArrowRight size={17}/></Link>
