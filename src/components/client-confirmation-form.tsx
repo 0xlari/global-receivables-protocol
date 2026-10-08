@@ -155,7 +155,7 @@ export function ClientConfirmationForm() {
         }
 
         setMessage(
-          "Confirmação demonstrativa registrada. A autorização Solana não é executada no modo demo.",
+          "Confirmação demonstrativa registrada. O compromisso Solana não é executado no modo demo.",
         );
         setStep("done");
         setState("ready");
@@ -260,7 +260,7 @@ export function ClientConfirmationForm() {
 
       setTransactionSignature(sent.signature);
       setMessage(
-        "Recebível confirmado e autorização USDC registrada na Solana.",
+        "Recebível confirmado e compromisso on-chain registrado na Solana.",
       );
       setStep("done");
       setState("ready");
@@ -322,8 +322,7 @@ export function ClientConfirmationForm() {
 
         <h2>Confirme o compromisso de pagamento</h2>
         <p>
-          Sua carteira continuará sob seu controle. O GRP receberá uma autorização limitada a
-          este recebível e ao valor abaixo.
+          Sua carteira continuará sob seu controle. O GRP registra apenas o compromisso deste recebível. Nenhuma permissão de débito futuro é criada.
         </p>
 
         <dl className="authorization-review">
@@ -347,7 +346,7 @@ export function ClientConfirmationForm() {
           onClick={() => void authorizeOnSolana()}
         >
           <WalletCards size={19} />
-          {state === "sending" ? "Aguardando carteira…" : "Conectar carteira e autorizar USDC"}
+          {state === "sending" ? "Aguardando carteira…" : "Conectar carteira e registrar compromisso"}
         </button>
       </section>
     );
@@ -420,8 +419,7 @@ export function ClientConfirmationForm() {
       </fieldset>
 
       <p className="confirmation-form__note">
-        A confirmação desta etapa não movimenta fundos. Se você aceitar, a próxima etapa conecta
-        sua carteira e registra uma autorização limitada para este recebível.
+        A confirmação desta etapa não movimenta fundos. Se você aceitar, a próxima etapa conecta sua carteira e registra apenas o compromisso on-chain deste recebível.
       </p>
 
       {state === "error" && message ? <p className="form-error">{message}</p> : null}
