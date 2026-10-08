@@ -102,12 +102,17 @@ export async function submitReceivableWithinTransaction<THKT extends PgQueryResu
       id: receivableId,
       requesterId: input.requesterId,
       clientId: input.clientId,
-      marketId: input.marketId ?? null,
       nominalAmount: input.nominalUsdCents,
       dueAt: input.dueAt,
       evidenceHash: input.evidence.sha256,
       status: "DRAFT",
     });
+    if (input.marketId) {
+      await db.insert(grpReceivableMarkets).values({
+        receivableId,
+        marketId: input.marketId,
+      });
+    }
     await db.insert(receivableVersions).values({ id: randomUUID(), receivableId, version: 1, paymentDescription: description, paymentPurpose: input.paymentPurpose, nominalAmount: input.nominalUsdCents, dueAt: input.dueAt });
     await db.insert(receivableEvidences).values({
       id: randomUUID(), receivableId, receivableVersion: 1,

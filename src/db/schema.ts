@@ -629,8 +629,6 @@ export const receivables = pgTable(
     clientId: text("client_id")
       .notNull()
       .references(() => clients.id, { onDelete: "restrict" }),
-    marketId: text("market_id")
-      .references(() => markets.id, { onDelete: "restrict" }),
     contractAsset: assetCode("contract_asset")
       .notNull()
       .default("USD_REFERENCE"),
@@ -655,7 +653,22 @@ export const receivables = pgTable(
       sql`${table.contractAsset} = 'USD_REFERENCE'::asset_code`,
     ),
     index("receivables_requester_idx").on(table.requesterId),
-    index("receivables_market_idx").on(table.marketId),
+  ],
+);
+
+export const grpReceivableMarkets = pgTable(
+  "grp_receivable_markets",
+  {
+    receivableId: text("receivable_id")
+      .primaryKey()
+      .references(() => receivables.id, { onDelete: "restrict" }),
+    marketId: text("market_id")
+      .notNull()
+      .references(() => markets.id, { onDelete: "restrict" }),
+    createdAt,
+  },
+  (table) => [
+    index("grp_receivable_markets_market_idx").on(table.marketId),
   ],
 );
 

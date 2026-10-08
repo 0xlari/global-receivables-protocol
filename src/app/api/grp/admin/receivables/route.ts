@@ -10,6 +10,7 @@ import {
   auditEvents,
   clientConfirmations,
   clients,
+  grpReceivableMarkets,
   markets,
   receivableVersions,
   receivables,
@@ -188,7 +189,8 @@ export async function GET(request: Request) {
         .from(receivables)
         .innerJoin(users, eq(users.id, receivables.requesterId))
         .innerJoin(clients, eq(clients.id, receivables.clientId))
-        .leftJoin(markets, eq(markets.id, receivables.marketId))
+        .leftJoin(grpReceivableMarkets, eq(grpReceivableMarkets.receivableId, receivables.id))
+        .leftJoin(markets, eq(markets.id, grpReceivableMarkets.marketId))
         .innerJoin(
           receivableVersions,
           and(

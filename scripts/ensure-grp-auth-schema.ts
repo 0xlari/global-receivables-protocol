@@ -71,9 +71,23 @@ async function main() {
     `;
 
     await sql`
-      UPDATE "receivables"
-      SET "market_id" = 'market_erh_br_v1'
-      WHERE "market_id" IS NULL
+      CREATE TABLE IF NOT EXISTS "grp_receivable_markets" (
+        "receivable_id" text PRIMARY KEY REFERENCES "receivables"("id") ON DELETE restrict,
+        "market_id" text NOT NULL REFERENCES "markets"("id") ON DELETE restrict,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS "grp_receivable_markets_market_idx"
+      ON "grp_receivable_markets" ("market_id")
+    `;
+
+    await sql`
+      INSERT INTO "grp_receivable_markets" ("receivable_id", "market_id")
+      SELECT "id", 'market_erh_br_v1'
+      FROM "receivables"
+      ON CONFLICT ("receivable_id") DO NOTHING
     `;
 
     const [table] = await sql<{ exists: boolean }[]>`
@@ -103,7 +117,7 @@ async function main() {
     console.log("- users.solana_wallet: OK");
     console.log("- solana_auth_challenges: OK");
     console.log("- markets: ERH + GRP Direct seeded");
-    console.log("- receivables.market_id: backfilled");
+    console.log("- grp_receivable_markets: ready and backfilled");
   } finally {
     await sql.end();
   }

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { clientConfirmations, clients, markets, receivableVersions, receivables } from "@/db/schema";
+import { clientConfirmations, clients, grpReceivableMarkets, markets, receivableVersions, receivables } from "@/db/schema";
 import { withSessionProfile } from "@/lib/app-session";
 
 export const runtime = "nodejs";
@@ -33,7 +33,7 @@ export async function GET(
           payerCountry: clients.countryCode,
           confirmationStatus: clientConfirmations.status,
           confirmationExpiresAt: clientConfirmations.expiresAt,
-          marketId: receivables.marketId,
+          marketId: grpReceivableMarkets.marketId,
           marketSlug: markets.slug,
           marketName: markets.name,
         })
@@ -46,7 +46,8 @@ export async function GET(
             eq(receivableVersions.version, receivables.version),
           ),
         )
-        .leftJoin(markets, eq(markets.id, receivables.marketId))
+        .leftJoin(grpReceivableMarkets, eq(grpReceivableMarkets.receivableId, receivables.id))
+        .leftJoin(markets, eq(markets.id, grpReceivableMarkets.marketId))
         .leftJoin(
           clientConfirmations,
           and(

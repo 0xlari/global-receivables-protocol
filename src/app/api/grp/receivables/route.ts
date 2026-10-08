@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { clientConfirmations, clients, markets, receivables, receivableVersions } from "@/db/schema";
+import { clientConfirmations, clients, grpReceivableMarkets, markets, receivables, receivableVersions } from "@/db/schema";
 import { paymentPurposes } from "@/domain/receivable";
 import { submitReceivableWithinTransaction } from "@/db/repositories/receivable-repository";
 import { assertJsonPayloadSize, assertSameOrigin, enforceRateLimit } from "@/lib/api-security";
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
           purpose: receivableVersions.paymentPurpose,
           confirmationStatus: clientConfirmations.status,
           confirmationExpiresAt: clientConfirmations.expiresAt,
-          marketId: receivables.marketId,
+          marketId: grpReceivableMarkets.marketId,
           marketSlug: markets.slug,
           marketName: markets.name,
         })
@@ -68,7 +68,8 @@ export async function GET(request: Request) {
             eq(receivableVersions.version, receivables.version),
           ),
         )
-        .leftJoin(markets, eq(markets.id, receivables.marketId))
+        .leftJoin(grpReceivableMarkets, eq(grpReceivableMarkets.receivableId, receivables.id))
+        .leftJoin(markets, eq(markets.id, grpReceivableMarkets.marketId))
         .leftJoin(
           clientConfirmations,
           and(
