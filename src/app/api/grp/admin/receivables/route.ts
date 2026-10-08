@@ -104,8 +104,9 @@ async function readOnchainValidation(
       "confirmed",
     );
 
-  const validationOwnedByProgram =
-    Boolean(validationInfo) && validationInfo?.owner.equals(pdas.program);
+  const validationOwnedByProgram = Boolean(
+    validationInfo && validationInfo.owner.equals(pdas.program),
+  );
 
   return {
     receivablePda: pdas.receivable.toBase58(),
