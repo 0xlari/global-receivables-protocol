@@ -13,6 +13,7 @@ import {
   creditLimits,
   identityEvidences,
   outboxEvents,
+  grpReceivableMarkets,
   receivableEvidences,
   receivableFingerprints,
   receivableVersions,
