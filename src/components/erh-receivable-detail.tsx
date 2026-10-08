@@ -53,7 +53,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
     try {
       const response = await fetch("/api/grp/receivables/" + receivableId, { cache: "no-store" });
       if (response.status === 401) {
-        window.location.href = "/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/recebivel/" + receivableId;
+        window.location.assign("/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/recebivel/" + receivableId);
         return;
       }
       const body = await response.json() as { receivable?: Receivable; error?: string };
@@ -70,7 +70,49 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
   }
 
   useEffect(() => {
-    void load();
+    let active = true;
+
+    fetch("/api/grp/receivables/" + receivableId, { cache: "no-store" })
+      .then(async (response) => {
+        if (response.status === 401) {
+          window.location.assign(
+            "/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/recebivel/" + receivableId,
+          );
+          return;
+        }
+
+        const body = await response.json() as {
+          receivable?: Receivable;
+          error?: string;
+        };
+
+        if (!response.ok || !body.receivable) {
+          throw new Error(body.error ?? "Não foi possível carregar este recebível.");
+        }
+        if (
+          body.receivable.marketSlug &&
+          body.receivable.marketSlug !== "elas-recebem-hoje"
+        ) {
+          throw new Error("Este recebível pertence a outro Market do GRP.");
+        }
+        if (!active) return;
+
+        setItem(body.receivable);
+        setState("ready");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar este recebível.",
+        );
+        setState("error");
+      });
+
+    return () => {
+      active = false;
+    };
   }, [receivableId]);
 
   async function reissueLink() {
