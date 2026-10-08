@@ -159,6 +159,9 @@ export function GrpReceivableAdministration() {
     }));
 
     try {
+      if (item.confirmationStatus !== "ACCEPTED") {
+        throw new Error("O pagador ainda não concluiu a confirmação deste recebível.");
+      }
       if (!item.requesterWallet) {
         throw new Error("A carteira Solana da solicitante não está vinculada.");
       }
@@ -354,11 +357,7 @@ export function GrpReceivableAdministration() {
                   <button
                     className="button button--primary"
                     type="button"
-                    disabled={
-                      current.working ||
-                      item.confirmationStatus !== "ACCEPTED" ||
-                      (!ready && !chainApproved)
-                    }
+                    disabled={current.working}
                     onClick={() => void decide(item, "APPROVED")}
                   >
                     <BadgeCheck size={17} />
@@ -371,17 +370,18 @@ export function GrpReceivableAdministration() {
                   <button
                     className="button button--secondary"
                     type="button"
-                    disabled={
-                      current.working ||
-                      item.confirmationStatus !== "ACCEPTED" ||
-                      !ready
-                    }
+                    disabled={current.working}
                     onClick={() => void decide(item, "REJECTED")}
                   >
                     <CircleX size={17} /> Rejeitar
                   </button>
                 </div>
 
+                {!ready && !chainApproved ? (
+                  <p className="form-error" role="status">
+                    O botão continua disponível para diagnóstico. Ao clicar, o sistema informa exatamente qual requisito ainda está faltando.
+                  </p>
+                ) : null}
                 {current.message ? <p role="status">{current.message}</p> : null}
               </article>
             );
