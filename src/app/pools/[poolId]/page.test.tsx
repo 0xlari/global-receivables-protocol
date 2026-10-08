@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-const redirect = vi.fn(() => {
-  throw new Error("NEXT_REDIRECT:/markets");
-});
+const mocks = vi.hoisted(() => ({
+  redirect: vi.fn(),
+}));
 
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 import PoolDetailsPage from "./page";
 
 describe("legacy pool detail route", () => {
   it("redirects legacy pool details to the GRP Markets directory", () => {
-    expect(() => PoolDetailsPage()).toThrow("NEXT_REDIRECT:/markets");
-    expect(redirect).toHaveBeenCalledWith("/markets");
+    PoolDetailsPage();
+    expect(mocks.redirect).toHaveBeenCalledWith("/markets");
   });
 });
