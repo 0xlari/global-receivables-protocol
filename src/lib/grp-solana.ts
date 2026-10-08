@@ -8,6 +8,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 const DEFAULT_GRP_PROGRAM_ID = "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY";
 
@@ -143,6 +144,96 @@ export async function buildPayerConfirmationTransaction(input: {
     connection,
     transaction,
     ...pdas,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
+
+export async function buildCreatePoolTransaction(input: {
+  requester: PublicKey;
+  receivableId: string;
+  usdcMint: PublicKey;
+  targetAmountUsdcMinor: bigint;
+  minimumPartialBps: number;
+  discountBps: number;
+  fundingDeadlineUnix: bigint;
+}) {
+  if (input.minimumPartialBps < 0 || input.minimumPartialBps > 10_000) {
+    throw new Error("INVALID_MINIMUM_PARTIAL_BPS");
+  }
+  if (input.discountBps < 0 || input.discountBps > 10_000) {
+    throw new Error("INVALID_DISCOUNT_BPS");
+  }
+
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [poolVault] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool-vault"), pool.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+
+  const [configInfo, receivableInfo, existingPool, payerBalance] = await Promise.all([
+    connection.getAccountInfo(pdas.config, "confirmed"),
+    connection.getAccountInfo(pdas.receivable, "confirmed"),
+    connection.getAccountInfo(pool, "confirmed"),
+    connection.getBalance(input.requester, "confirmed"),
+  ]);
+
+  if (!configInfo) throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
+  if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  if (existingPool) throw new Error("GRP_POOL_ALREADY_EXISTS");
+  if (payerBalance === 0) throw new Error("REQUESTER_NEEDS_DEVNET_SOL");
+
+  const data = Buffer.concat([
+    Buffer.from(await anchorDiscriminator("create_pool")),
+    Buffer.from(u64le(input.targetAmountUsdcMinor)),
+    Buffer.from(Uint8Array.of(
+      input.minimumPartialBps & 0xff,
+      (input.minimumPartialBps >> 8) & 0xff,
+    )),
+    Buffer.from(Uint8Array.of(
+      input.discountBps & 0xff,
+      (input.discountBps >> 8) & 0xff,
+    )),
+    Buffer.from(i64le(input.fundingDeadlineUnix)),
+  ]);
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+      { pubkey: pool, isSigner: false, isWritable: true },
+      { pubkey: poolVault, isSigner: false, isWritable: true },
+      { pubkey: input.requester, isSigner: true, isWritable: true },
+      { pubkey: input.usdcMint, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.requester,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection,
+    transaction,
+    pool,
+    poolVault,
     blockhash,
     lastValidBlockHeight,
   };
