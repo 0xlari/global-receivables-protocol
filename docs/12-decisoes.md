@@ -509,3 +509,17 @@
 - **Exemplo:** em um recebível de US$ 1.000 com US$ 800 financiados, os investidores recebem US$ 828, o Market recebe US$ 10, o GRP recebe US$ 5 e a recebedora recebe US$ 157 de residual.
 - **Regra de produto:** a originadora não escolhe essas taxas; elas são regras do Market.
 - **Compatibilidade:** o campo on-chain legado `discount_bps` passa a representar o retorno do investidor para pools novas, até a migração para um MarketConfig on-chain explícito.
+
+
+## ADR-062 — fechamento operacional de Markets no MVP
+
+- **Data:** 2026-10-09
+- **Status:** aprovada e implementada no P2.8
+- **Decisão:** GRP é a infraestrutura comum; cada Market possui operador, geografia, status, regras, economia e responsabilidades próprias.
+- **Lifecycle:** `PROPOSED → SANDBOX → ACTIVE`, com `PAUSED`, `SUSPENDED` e `RETIRED` como estados operacionais posteriores. Pausar, suspender ou aposentar um Market bloqueia nova originação, mas não apaga recebíveis ou histórico do Receivable Passport.
+- **Elas Recebem Hoje:** primeiro Market ativo, Brasil, settlement em USDC, advance de 80%, retorno do investidor de 3,5% sobre o capital aportado, Market fee de 1% do valor de face liquidado e Protocol fee GRP de 0,50%; o saldo residual retorna à recebedora.
+- **GRP Direct:** permanece `SANDBOX`, sem originação pública, para validação controlada dos primitives do protocolo.
+- **Responsabilidade do Market Operator:** distribuição, originação, elegibilidade e validação, operação do cliente, coordenação de rails e responsabilidades locais declaradas.
+- **Responsabilidade do GRP:** estado financeiro canônico, settlement primitives, Receivable Passport, registry de Markets e infraestrutura compartilhada.
+- **Ativação:** uma proposta nunca ativa automaticamente um Market; no MVP do hackathon, propostas exigem revisão manual antes de qualquer ativação em banco ou on-chain.
+- **Próximo hardening:** mover regras críticas e MarketConfig para estado on-chain no P3, preservando a separação entre economia do Market e fee do protocolo.
