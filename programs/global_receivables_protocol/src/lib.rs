@@ -3,6 +3,9 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
+const ERH_MARKET_FEE_BPS: u64 = 100;
+const GRP_PROTOCOL_FEE_BPS: u64 = 50;
+
 #[program]
 pub mod global_receivables_protocol {
     use super::*;
@@ -535,11 +538,13 @@ pub mod global_receivables_protocol {
             GrpError::InvalidAmount
         );
 
-        let numerator = u128::from(ctx.accounts.pool.repaid_amount)
-            .checked_mul(u128::from(ctx.accounts.contribution.amount))
+        let return_multiplier_bps = 10_000u128
+            .checked_add(u128::from(ctx.accounts.pool.discount_bps))
             .ok_or(GrpError::ArithmeticOverflow)?;
-        let due_u128 = numerator
-            .checked_div(u128::from(ctx.accounts.pool.funded_amount))
+        let due_u128 = u128::from(ctx.accounts.contribution.amount)
+            .checked_mul(return_multiplier_bps)
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_div(10_000u128)
             .ok_or(GrpError::ArithmeticOverflow)?;
         let due = u64::try_from(due_u128).map_err(|_| GrpError::ArithmeticOverflow)?;
         require!(due > 0, GrpError::NothingToDistribute);
@@ -586,6 +591,132 @@ pub mod global_receivables_protocol {
         Ok(())
     }
 
+
+    pub fn claim_settlement_residual(ctx: Context<ClaimSettlementResidual>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(
+            matches!(ctx.accounts.pool.status, PoolStatus::Settled | PoolStatus::Cured),
+            GrpError::PoolNotSettled
+        );
+        require!(
+            ctx.accounts.receivable.requester == ctx.accounts.requester.key(),
+            GrpError::UnauthorizedRequester
+        );
+        require!(ctx.accounts.pool.repaid_amount > 0, GrpError::NothingToDistribute);
+
+        let face_value = u128::from(ctx.accounts.receivable.settlement_amount_usdc);
+        let funded = u128::from(ctx.accounts.pool.funded_amount);
+        let return_multiplier_bps = 10_000u128
+            .checked_add(u128::from(ctx.accounts.pool.discount_bps))
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        let investor_total = funded
+            .checked_mul(return_multiplier_bps)
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_div(10_000u128)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+
+        let market_fee = face_value
+            .checked_mul(u128::from(ERH_MARKET_FEE_BPS))
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_div(10_000u128)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        let protocol_fee = face_value
+            .checked_mul(u128::from(GRP_PROTOCOL_FEE_BPS))
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_div(10_000u128)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+
+        let repaid = u128::from(ctx.accounts.pool.repaid_amount);
+        let allocated = investor_total
+            .checked_add(market_fee)
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_add(protocol_fee)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        require!(repaid >= allocated, GrpError::SettlementEconomicsInvalid);
+
+        let residual = repaid
+            .checked_sub(allocated)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        require!(residual > 0, GrpError::NothingToDistribute);
+
+        let market_fee_u64 = u64::try_from(market_fee).map_err(|_| GrpError::ArithmeticOverflow)?;
+        let protocol_fee_u64 = u64::try_from(protocol_fee).map_err(|_| GrpError::ArithmeticOverflow)?;
+        let residual_u64 = u64::try_from(residual).map_err(|_| GrpError::ArithmeticOverflow)?;
+
+        let receivable_key = ctx.accounts.receivable.key();
+        let bump = [ctx.accounts.payer_authorization.bump];
+        let signer_seeds: &[&[u8]] = &[
+            b"payer-authorization",
+            receivable_key.as_ref(),
+            &bump,
+        ];
+        let signer = &[signer_seeds];
+
+        if market_fee_u64 > 0 {
+            let transfer_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.key(),
+                TransferChecked {
+                    from: ctx.accounts.settlement_vault.to_account_info(),
+                    mint: ctx.accounts.usdc_mint.to_account_info(),
+                    to: ctx.accounts.market_token_account.to_account_info(),
+                    authority: ctx.accounts.payer_authorization.to_account_info(),
+                },
+                signer,
+            );
+            token::transfer_checked(
+                transfer_ctx,
+                market_fee_u64,
+                ctx.accounts.usdc_mint.decimals,
+            )?;
+        }
+
+        if protocol_fee_u64 > 0 {
+            let transfer_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.key(),
+                TransferChecked {
+                    from: ctx.accounts.settlement_vault.to_account_info(),
+                    mint: ctx.accounts.usdc_mint.to_account_info(),
+                    to: ctx.accounts.protocol_token_account.to_account_info(),
+                    authority: ctx.accounts.payer_authorization.to_account_info(),
+                },
+                signer,
+            );
+            token::transfer_checked(
+                transfer_ctx,
+                protocol_fee_u64,
+                ctx.accounts.usdc_mint.decimals,
+            )?;
+        }
+
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            TransferChecked {
+                from: ctx.accounts.settlement_vault.to_account_info(),
+                mint: ctx.accounts.usdc_mint.to_account_info(),
+                to: ctx.accounts.requester_token_account.to_account_info(),
+                authority: ctx.accounts.payer_authorization.to_account_info(),
+            },
+            signer,
+        );
+        token::transfer_checked(
+            transfer_ctx,
+            residual_u64,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+
+        let now = Clock::get()?.unix_timestamp;
+        let distribution = &mut ctx.accounts.settlement_distribution;
+        distribution.receivable = ctx.accounts.receivable.key();
+        distribution.pool = ctx.accounts.pool.key();
+        distribution.requester = ctx.accounts.requester.key();
+        distribution.market_fee_amount = market_fee_u64;
+        distribution.protocol_fee_amount = protocol_fee_u64;
+        distribution.requester_residual_amount = residual_u64;
+        distribution.created_at = now;
+        distribution.bump = ctx.bumps.settlement_distribution;
+
+        Ok(())
+    }
 
     pub fn process_delinquency(ctx: Context<ProcessDelinquency>) -> Result<()> {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
@@ -1284,6 +1415,91 @@ pub struct ClaimDistribution<'info> {
 
 
 #[derive(Accounts)]
+pub struct ClaimSettlementResidual<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        seeds = [
+            b"receivable",
+            receivable.requester.as_ref(),
+            receivable.receivable_id.as_ref()
+        ],
+        bump = receivable.bump,
+        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault
+    )]
+    pub receivable: Account<'info, Receivable>,
+
+    #[account(
+        seeds = [b"pool", receivable.key().as_ref()],
+        bump = pool.bump,
+        has_one = receivable @ GrpError::InvalidPoolReceivable,
+        constraint = pool.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        seeds = [b"payer-authorization", receivable.key().as_ref()],
+        bump = payer_authorization.bump,
+        has_one = settlement_vault @ GrpError::InvalidSettlementVault
+    )]
+    pub payer_authorization: Account<'info, PayerAuthorization>,
+
+    #[account(mut)]
+    pub requester: Signer<'info>,
+
+    #[account(
+        address = config.usdc_mint @ GrpError::InvalidUsdcMint
+    )]
+    pub usdc_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = requester
+    )]
+    pub requester_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = receivable.originator
+    )]
+    pub market_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = config.treasury
+    )]
+    pub protocol_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        address = payer_authorization.settlement_vault @ GrpError::InvalidSettlementVault,
+        token::mint = usdc_mint,
+        token::authority = payer_authorization
+    )]
+    pub settlement_vault: Account<'info, TokenAccount>,
+
+    #[account(
+        init,
+        payer = requester,
+        space = 8 + SettlementDistribution::INIT_SPACE,
+        seeds = [b"settlement-distribution", pool.key().as_ref()],
+        bump
+    )]
+    pub settlement_distribution: Account<'info, SettlementDistribution>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct ProcessDelinquency<'info> {
     #[account(
         seeds = [b"config"],
@@ -1438,6 +1654,19 @@ pub struct PayerAuthorization {
     pub had_payment_failure: bool,
     pub created_at: i64,
     pub updated_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct SettlementDistribution {
+    pub receivable: Pubkey,
+    pub pool: Pubkey,
+    pub requester: Pubkey,
+    pub market_fee_amount: u64,
+    pub protocol_fee_amount: u64,
+    pub requester_residual_amount: u64,
+    pub created_at: i64,
     pub bump: u8,
 }
 
@@ -1742,6 +1971,8 @@ pub enum GrpError {
     NothingToDistribute,
     #[msg("The settlement vault balance is insufficient.")]
     InsufficientSettlementBalance,
+    #[msg("The settlement economics do not fit within the amount repaid.")]
+    SettlementEconomicsInvalid,
     #[msg("The contribution does not belong to the provided pool.")]
     InvalidContributionPool,
     #[msg("Only the contribution investor can claim this distribution.")]
