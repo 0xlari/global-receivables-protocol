@@ -284,7 +284,7 @@ export function ClientConfirmationForm() {
       const sent = await provider.signAndSendTransaction(built.transaction);
       await built.connection.confirmTransaction(sent.signature, "confirmed");
 
-      setTransactionSignature(signature);
+      setTransactionSignature(sent.signature);
       setMessage(
         "Recebível confirmado e compromisso on-chain registrado na Solana.",
       );
@@ -377,7 +377,7 @@ export function ClientConfirmationForm() {
         throw new Error(body.error ?? "O pagamento confirmou, mas não pôde ser sincronizado.");
       }
 
-      setTransactionSignature(sent.signature);
+      setTransactionSignature(signature);
       setMessage("Pagamento concluído em USDC. O recebível foi liquidado no GRP.");
       setStep("done");
       setState("ready");
