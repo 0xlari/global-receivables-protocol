@@ -460,6 +460,196 @@ export async function buildDisbursePoolTransaction(input: {
   };
 }
 
+
+export async function getPayerCommitmentStatus(input: {
+  requester: PublicKey;
+  receivableId: string;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const account = await connection.getAccountInfo(
+    pdas.payerAuthorization,
+    "confirmed",
+  );
+  return {
+    exists: Boolean(account),
+    payerAuthorization: pdas.payerAuthorization,
+  };
+}
+
+export async function buildManualRepaymentTransaction(input: {
+  payer: PublicKey;
+  requester: PublicKey;
+  receivableId: string;
+  usdcMint: PublicKey;
+  amountUsdcMinor: bigint;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [passport] = PublicKey.findProgramAddressSync(
+    [Buffer.from("passport"), input.requester.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const payerTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    input.payer,
+  );
+
+  const [
+    receivableInfo,
+    payerAuthorizationInfo,
+    poolInfo,
+    passportInfo,
+    payerTokenInfo,
+    settlementVaultInfo,
+    payerSolBalance,
+  ] = await Promise.all([
+    connection.getAccountInfo(pdas.receivable, "confirmed"),
+    connection.getAccountInfo(pdas.payerAuthorization, "confirmed"),
+    connection.getAccountInfo(pool, "confirmed"),
+    connection.getAccountInfo(passport, "confirmed"),
+    connection.getAccountInfo(payerTokenAccount, "confirmed"),
+    connection.getAccountInfo(pdas.settlementVault, "confirmed"),
+    connection.getBalance(input.payer, "confirmed"),
+  ]);
+
+  if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  if (!payerAuthorizationInfo) throw new Error("GRP_PAYER_COMMITMENT_NOT_FOUND");
+  if (!poolInfo) throw new Error("GRP_POOL_NOT_FOUND_ON_DEVNET");
+  if (!passportInfo) throw new Error("GRP_PASSPORT_NOT_FOUND_ON_DEVNET");
+  if (!payerTokenInfo) throw new Error("PAYER_USDC_ACCOUNT_NOT_FOUND");
+  if (settlementVaultInfo) throw new Error("GRP_SETTLEMENT_ALREADY_STARTED");
+  if (payerSolBalance === 0) throw new Error("PAYER_NEEDS_DEVNET_SOL");
+
+  const payerUsdcBalance = payerTokenInfo.data.readBigUInt64LE(64);
+  if (payerUsdcBalance < input.amountUsdcMinor) {
+    throw new Error("INSUFFICIENT_DEVNET_USDC");
+  }
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+      { pubkey: pdas.payerAuthorization, isSigner: false, isWritable: true },
+      { pubkey: input.payer, isSigner: true, isWritable: true },
+      { pubkey: input.usdcMint, isSigner: false, isWritable: false },
+      { pubkey: payerTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: pdas.settlementVault, isSigner: false, isWritable: true },
+      { pubkey: pool, isSigner: false, isWritable: true },
+      { pubkey: passport, isSigner: false, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.concat([
+      Buffer.from(await anchorDiscriminator("manual_repayment")),
+      Buffer.from(u64le(input.amountUsdcMinor)),
+    ]),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.payer,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection,
+    transaction,
+    receivable: pdas.receivable,
+    payerAuthorization: pdas.payerAuthorization,
+    settlementVault: pdas.settlementVault,
+    payerTokenAccount,
+    pool,
+    passport,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
+export async function buildClaimDistributionTransaction(input: {
+  investor: PublicKey;
+  requester: PublicKey;
+  receivableId: string;
+  usdcMint: PublicKey;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [contribution] = PublicKey.findProgramAddressSync(
+    [Buffer.from("contribution"), pool.toBuffer(), input.investor.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const investorTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    input.investor,
+  );
+
+  const [contributionInfo, settlementVaultInfo, investorTokenInfo] =
+    await Promise.all([
+      connection.getAccountInfo(contribution, "confirmed"),
+      connection.getAccountInfo(pdas.settlementVault, "confirmed"),
+      connection.getAccountInfo(investorTokenAccount, "confirmed"),
+    ]);
+
+  if (!contributionInfo) throw new Error("GRP_CONTRIBUTION_NOT_FOUND_ON_DEVNET");
+  if (!settlementVaultInfo) throw new Error("GRP_SETTLEMENT_VAULT_NOT_FOUND");
+  if (!investorTokenInfo) throw new Error("INVESTOR_USDC_ACCOUNT_NOT_FOUND");
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: false },
+      { pubkey: pool, isSigner: false, isWritable: true },
+      { pubkey: contribution, isSigner: false, isWritable: true },
+      { pubkey: pdas.payerAuthorization, isSigner: false, isWritable: false },
+      { pubkey: input.investor, isSigner: true, isWritable: false },
+      { pubkey: input.usdcMint, isSigner: false, isWritable: false },
+      { pubkey: investorTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: pdas.settlementVault, isSigner: false, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(await anchorDiscriminator("claim_distribution")),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.investor,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection,
+    transaction,
+    contribution,
+    investorTokenAccount,
+    settlementVault: pdas.settlementVault,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
 export async function payerCommitmentHash(input: {
   receivableId: string;
   amountUsdcMinor: bigint;
