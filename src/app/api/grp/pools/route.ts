@@ -123,6 +123,7 @@ export async function GET(request: Request) {
             nominalUsdCents: row.nominalUsdCents.toString(),
             dueAt: row.dueAt.toISOString(),
             marketName: row.marketName,
+            requesterWallet: row.requesterWallet,
             poolPda: derived.pool.toBase58(),
             targetAmountUsdcMinor: readU64(account.data, 136),
             fundedAmountUsdcMinor: readU64(account.data, 144),
