@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import * as anchor from "@anchor-lang/core";
 import { Program } from "@anchor-lang/core";
 import {
@@ -9,6 +11,7 @@ import {
   TOKEN_PROGRAM_ID,
   createMint,
   getAccount,
+  getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
   mintTo,
 } from "@solana/spl-token";
@@ -16,7 +19,7 @@ import { expect } from "chai";
 
 import type { GlobalReceivablesProtocol } from "../target/types/global_receivables_protocol";
 
-describe("GRP on-chain happy path", () => {
+describe("GRP current MarketConfig happy path", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -27,6 +30,7 @@ describe("GRP on-chain happy path", () => {
   const payer = Keypair.generate();
   const investor = Keypair.generate();
   const originator = Keypair.generate();
+  const marketTreasury = Keypair.generate();
 
   let usdcMint: PublicKey;
 
@@ -35,8 +39,16 @@ describe("GRP on-chain happy path", () => {
     9, 10, 11, 12, 13, 14, 15, 16,
   ]);
 
+  const marketSlug = "elas-recebem-hoje";
+  const marketIdHash = createHash("sha256").update(marketSlug).digest();
+
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
+    program.programId,
+  );
+
+  const [marketConfigPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("market-config"), marketIdHash],
     program.programId,
   );
 
@@ -54,13 +66,13 @@ describe("GRP on-chain happy path", () => {
     program.programId,
   );
 
-  const [payerAuthorizationPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("payer-authorization"), receivablePda.toBuffer()],
+  const [receivableMarketPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("receivable-market"), receivablePda.toBuffer()],
     program.programId,
   );
 
-  const [settlementVaultPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("settlement-vault"), receivablePda.toBuffer()],
+  const [payerAuthorizationPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("payer-authorization"), receivablePda.toBuffer()],
     program.programId,
   );
 
@@ -92,12 +104,17 @@ describe("GRP on-chain happy path", () => {
     program.programId,
   );
 
+  const [settlementDistributionPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("settlement-distribution"), poolPda.toBuffer()],
+    program.programId,
+  );
+
   async function airdrop(pubkey: PublicKey) {
-    const sig = await provider.connection.requestAirdrop(
+    const signature = await provider.connection.requestAirdrop(
       pubkey,
       2 * anchor.web3.LAMPORTS_PER_SOL,
     );
-    await provider.connection.confirmTransaction(sig, "confirmed");
+    await provider.connection.confirmTransaction(signature, "confirmed");
   }
 
   before(async () => {
@@ -126,6 +143,27 @@ describe("GRP on-chain happy path", () => {
       .rpc();
 
     await program.methods
+      .initializeMarket(
+        Array.from(marketIdHash),
+        originator.publicKey,
+        marketTreasury.publicKey,
+        { active: {} },
+        8_000,
+        5_000,
+        350,
+        100,
+        50,
+        1,
+      )
+      .accounts({
+        config: configPda,
+        marketConfig: marketConfigPda,
+        authority: provider.wallet.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    await program.methods
       .initializePassport()
       .accounts({
         passport: passportPda,
@@ -136,7 +174,7 @@ describe("GRP on-chain happy path", () => {
       .rpc();
   });
 
-  it("runs the complete receivable -> funding -> repayment -> distribution -> passport flow", async () => {
+  it("enforces MarketConfig and runs create -> fund -> advance -> settle -> distribute -> Passport", async () => {
     const payerAta = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       (provider.wallet as anchor.Wallet).payer,
@@ -158,6 +196,34 @@ describe("GRP on-chain happy path", () => {
       requester.publicKey,
     );
 
+    const marketTreasuryAta = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as anchor.Wallet).payer,
+      usdcMint,
+      marketTreasury.publicKey,
+    );
+
+    const protocolTreasuryAta = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as anchor.Wallet).payer,
+      usdcMint,
+      provider.wallet.publicKey,
+    );
+
+    const settlementVault = await getAssociatedTokenAddress(
+      usdcMint,
+      payerAuthorizationPda,
+      true,
+    );
+
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as anchor.Wallet).payer,
+      usdcMint,
+      payerAuthorizationPda,
+      true,
+    );
+
     await mintTo(
       provider.connection,
       (provider.wallet as anchor.Wallet).payer,
@@ -177,11 +243,8 @@ describe("GRP on-chain happy path", () => {
     );
 
     const now = Math.floor(Date.now() / 1000);
-    // Keep the complete integration test fast while still exercising time-gated repayment.
-    const dueAtUnix = now + 20;
-    const fundingDeadlineUnix = now + 12;
-    const dueAt = new anchor.BN(dueAtUnix);
-    const fundingDeadline = new anchor.BN(fundingDeadlineUnix);
+    const fundingDeadline = new anchor.BN(now + 60);
+    const dueAt = new anchor.BN(now + 120);
 
     await program.methods
       .createReceivable(
@@ -212,20 +275,18 @@ describe("GRP on-chain happy path", () => {
         receivable: receivablePda,
         payerAuthorization: payerAuthorizationPda,
         payer: payer.publicKey,
-        usdcMint,        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId,
       })
       .signers([payer])
       .rpc();
 
-    const payerAccount = await getAccount(
+    const payerAfterCommitment = await getAccount(
       provider.connection,
       payerAta.address,
     );
-    expect(payerAccount.amount.toString()).to.equal("2000000");
-    expect(payerAccount.delegate?.toBase58()).to.equal(
-      payerAuthorizationPda.toBase58(),
-    );
-    expect(payerAccount.delegatedAmount.toString()).to.equal("1000000");
+    expect(payerAfterCommitment.delegate).to.equal(null);
+    expect(payerAfterCommitment.delegatedAmount.toString()).to.equal("0");
+    expect(payerAfterCommitment.amount.toString()).to.equal("2000000");
 
     await program.methods
       .recordValidation(
@@ -245,13 +306,15 @@ describe("GRP on-chain happy path", () => {
 
     await program.methods
       .createPool(
-        new anchor.BN(900_000),
+        new anchor.BN(800_000),
         5_000,
-        1_000,
+        350,
         fundingDeadline,
       )
       .accounts({
         config: configPda,
+        marketConfig: marketConfigPda,
+        receivableMarket: receivableMarketPda,
         receivable: receivablePda,
         pool: poolPda,
         poolVault: poolVaultPda,
@@ -263,8 +326,15 @@ describe("GRP on-chain happy path", () => {
       .signers([requester])
       .rpc();
 
+    const marketBinding = await program.account.receivableMarket.fetch(
+      receivableMarketPda,
+    );
+    expect(marketBinding.marketConfig.toBase58()).to.equal(
+      marketConfigPda.toBase58(),
+    );
+
     await program.methods
-      .fundPool(new anchor.BN(900_000))
+      .fundPool(new anchor.BN(800_000))
       .accounts({
         config: configPda,
         receivable: receivablePda,
@@ -279,7 +349,6 @@ describe("GRP on-chain happy path", () => {
       })
       .signers([investor])
       .rpc();
-
 
     await program.methods
       .disbursePool()
@@ -296,17 +365,14 @@ describe("GRP on-chain happy path", () => {
       .signers([requester])
       .rpc();
 
-    const requesterAfterDisbursement = await getAccount(
+    const requesterAfterAdvance = await getAccount(
       provider.connection,
       requesterAta.address,
     );
-    expect(requesterAfterDisbursement.amount.toString()).to.equal("900000");
+    expect(requesterAfterAdvance.amount.toString()).to.equal("800000");
 
-    const waitMs = Math.max(0, (dueAtUnix - Math.floor(Date.now() / 1000) + 1) * 1000);
-    if (waitMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
-
+    // Early voluntary settlement is valid after disbursement. A fresh payer
+    // signature moves USDC; the commitment step did not authorize future debit.
     await program.methods
       .manualRepayment(new anchor.BN(1_000_000))
       .accounts({
@@ -316,7 +382,7 @@ describe("GRP on-chain happy path", () => {
         payer: payer.publicKey,
         usdcMint,
         payerTokenAccount: payerAta.address,
-        settlementVault: settlementVaultPda,
+        settlementVault,
         pool: poolPda,
         passport: passportPda,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -340,7 +406,7 @@ describe("GRP on-chain happy path", () => {
         investor: investor.publicKey,
         usdcMint,
         investorTokenAccount: investorAta.address,
-        settlementVault: settlementVaultPda,
+        settlementVault,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([investor])
@@ -352,28 +418,122 @@ describe("GRP on-chain happy path", () => {
     );
     expect(
       (investorAfterClaim.amount - investorBeforeClaim.amount).toString(),
-    ).to.equal("1000000");
+    ).to.equal("828000");
+
+    const requesterBeforeResidual = await getAccount(
+      provider.connection,
+      requesterAta.address,
+    );
+    const marketBefore = await getAccount(
+      provider.connection,
+      marketTreasuryAta.address,
+    );
+    const protocolBefore = await getAccount(
+      provider.connection,
+      protocolTreasuryAta.address,
+    );
+
+    await program.methods
+      .claimSettlementResidual()
+      .accounts({
+        config: configPda,
+        marketConfig: marketConfigPda,
+        receivableMarket: receivableMarketPda,
+        receivable: receivablePda,
+        pool: poolPda,
+        payerAuthorization: payerAuthorizationPda,
+        requester: requester.publicKey,
+        usdcMint,
+        settlementVault,
+        settlementDistribution: settlementDistributionPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts([
+        {
+          pubkey: requesterAta.address,
+          isSigner: false,
+          isWritable: true,
+        },
+        {
+          pubkey: marketTreasuryAta.address,
+          isSigner: false,
+          isWritable: true,
+        },
+        {
+          pubkey: protocolTreasuryAta.address,
+          isSigner: false,
+          isWritable: true,
+        },
+      ])
+      .signers([requester])
+      .rpc();
+
+    const requesterAfterResidual = await getAccount(
+      provider.connection,
+      requesterAta.address,
+    );
+    const marketAfter = await getAccount(
+      provider.connection,
+      marketTreasuryAta.address,
+    );
+    const protocolAfter = await getAccount(
+      provider.connection,
+      protocolTreasuryAta.address,
+    );
+    const settlementAfter = await getAccount(
+      provider.connection,
+      settlementVault,
+    );
+
+    expect(
+      (requesterAfterResidual.amount - requesterBeforeResidual.amount).toString(),
+    ).to.equal("157000");
+    expect((marketAfter.amount - marketBefore.amount).toString()).to.equal(
+      "10000",
+    );
+    expect(
+      (protocolAfter.amount - protocolBefore.amount).toString(),
+    ).to.equal("5000");
+    expect(settlementAfter.amount.toString()).to.equal("0");
 
     const receivable = await program.account.receivable.fetch(receivablePda);
     const pool = await program.account.pool.fetch(poolPda);
-    const contribution = await program.account.contribution.fetch(contributionPda);
-    const passport = await program.account.receivablePassport.fetch(passportPda);
-
-    expect(receivable.payerWallet.toBase58()).to.equal(payer.publicKey.toBase58());
-    expect(receivable.payerAuthorization.toBase58()).to.equal(
-      payerAuthorizationPda.toBase58(),
-    );
-    expect(pool.fundedAmount.toString()).to.equal("900000");
-    expect(pool.repaidAmount.toString()).to.equal("1000000");
-    expect(pool.distributedAmount.toString()).to.equal("1000000");
-    expect(contribution.amount.toString()).to.equal("900000");
-
-    const contributionAfterClaim = await program.account.contribution.fetch(
+    const contribution = await program.account.contribution.fetch(
       contributionPda,
     );
-    expect(contributionAfterClaim.distributedAmount.toString()).to.equal(
-      "1000000",
+    const passport = await program.account.receivablePassport.fetch(
+      passportPda,
     );
+    const distribution = await program.account.settlementDistribution.fetch(
+      settlementDistributionPda,
+    );
+    const marketConfig = await program.account.marketConfig.fetch(
+      marketConfigPda,
+    );
+
+    expect(receivable.payerWallet.toBase58()).to.equal(
+      payer.publicKey.toBase58(),
+    );
+    expect(receivable.settlementVault.toBase58()).to.equal(
+      settlementVault.toBase58(),
+    );
+    expect(pool.targetAmount.toString()).to.equal("800000");
+    expect(pool.fundedAmount.toString()).to.equal("800000");
+    expect(pool.repaidAmount.toString()).to.equal("1000000");
+    expect(pool.distributedAmount.toString()).to.equal("828000");
+    expect(contribution.amount.toString()).to.equal("800000");
+    expect(contribution.distributedAmount.toString()).to.equal("828000");
+
+    expect(marketConfig.advanceBps).to.equal(8_000);
+    expect(marketConfig.minimumPartialBps).to.equal(5_000);
+    expect(marketConfig.investorReturnBps).to.equal(350);
+    expect(marketConfig.marketFeeBps).to.equal(100);
+    expect(marketConfig.protocolFeeBps).to.equal(50);
+
+    expect(distribution.marketFeeAmount.toString()).to.equal("10000");
+    expect(distribution.protocolFeeAmount.toString()).to.equal("5000");
+    expect(distribution.requesterResidualAmount.toString()).to.equal("157000");
 
     expect(passport.receivablesCreated.toString()).to.equal("1");
     expect(passport.receivablesSettled.toString()).to.equal("1");
@@ -382,5 +542,150 @@ describe("GRP on-chain happy path", () => {
     expect(passport.defaults.toString()).to.equal("0");
     expect(passport.defaultsCured.toString()).to.equal("0");
     expect(passport.totalSettledAmount.toString()).to.equal("1000000");
+  });
+
+  it("rejects pool economics that do not match the MarketConfig", async () => {
+    const secondRequester = Keypair.generate();
+    const secondPayer = Keypair.generate();
+    const secondReceivableId = Uint8Array.from([
+      16, 15, 14, 13, 12, 11, 10, 9,
+      8, 7, 6, 5, 4, 3, 2, 1,
+    ]);
+
+    await Promise.all([
+      airdrop(secondRequester.publicKey),
+      airdrop(secondPayer.publicKey),
+    ]);
+
+    const [secondPassport] = PublicKey.findProgramAddressSync(
+      [Buffer.from("passport"), secondRequester.publicKey.toBuffer()],
+      program.programId,
+    );
+    const [secondReceivable] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("receivable"),
+        secondRequester.publicKey.toBuffer(),
+        Buffer.from(secondReceivableId),
+      ],
+      program.programId,
+    );
+    const [secondAuthorization] = PublicKey.findProgramAddressSync(
+      [Buffer.from("payer-authorization"), secondReceivable.toBuffer()],
+      program.programId,
+    );
+    const [secondValidation] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("validation"),
+        secondReceivable.toBuffer(),
+        originator.publicKey.toBuffer(),
+      ],
+      program.programId,
+    );
+    const [secondPool] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pool"), secondReceivable.toBuffer()],
+      program.programId,
+    );
+    const [secondPoolVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pool-vault"), secondPool.toBuffer()],
+      program.programId,
+    );
+    const [secondReceivableMarket] = PublicKey.findProgramAddressSync(
+      [Buffer.from("receivable-market"), secondReceivable.toBuffer()],
+      program.programId,
+    );
+
+    await program.methods
+      .initializePassport()
+      .accounts({
+        passport: secondPassport,
+        subject: secondRequester.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([secondRequester])
+      .rpc();
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await program.methods
+      .createReceivable(
+        Array.from(secondReceivableId),
+        originator.publicKey,
+        Array(32).fill(3),
+        Array.from(Buffer.from("USD")),
+        new anchor.BN(1_000_000),
+        new anchor.BN(now + 120),
+      )
+      .accounts({
+        config: configPda,
+        receivable: secondReceivable,
+        passport: secondPassport,
+        requester: secondRequester.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([secondRequester])
+      .rpc();
+
+    await program.methods
+      .recordPayerConfirmation(
+        Array(32).fill(4),
+        new anchor.BN(1_000_000),
+      )
+      .accounts({
+        config: configPda,
+        receivable: secondReceivable,
+        payerAuthorization: secondAuthorization,
+        payer: secondPayer.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([secondPayer])
+      .rpc();
+
+    await program.methods
+      .recordValidation(
+        { approved: {} },
+        Array(32).fill(5),
+        1,
+      )
+      .accounts({
+        config: configPda,
+        receivable: secondReceivable,
+        validation: secondValidation,
+        validator: originator.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([originator])
+      .rpc();
+
+    let rejected = false;
+    try {
+      await program.methods
+        .createPool(
+          new anchor.BN(900_000),
+          5_000,
+          1_000,
+          new anchor.BN(now + 60),
+        )
+        .accounts({
+          config: configPda,
+          marketConfig: marketConfigPda,
+          receivableMarket: secondReceivableMarket,
+          receivable: secondReceivable,
+          pool: secondPool,
+          poolVault: secondPoolVault,
+          requester: secondRequester.publicKey,
+          usdcMint,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([secondRequester])
+        .rpc();
+    } catch (error) {
+      rejected = true;
+      expect(String(error)).to.match(
+        /MarketRulesMismatch|transaction does not match the Market rules/i,
+      );
+    }
+
+    expect(rejected).to.equal(true);
   });
 });
