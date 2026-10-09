@@ -254,7 +254,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
       const targetCents =
         (BigInt(item.nominalUsdCents) * BigInt(ERH_MARKET_RULES.advanceBps)) / 10_000n;
       const minBps = ERH_MARKET_RULES.minimumPartialBps;
-      const discountBps = ERH_MARKET_RULES.discountBps;
+      const discountBps = ERH_MARKET_RULES.investorReturnBps;
       const deadlineUnix = BigInt(
         Math.floor(new Date(fundingDeadline + "T23:59:59").getTime() / 1000),
       );
@@ -428,8 +428,16 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
                 <span>{(ERH_MARKET_RULES.minimumPartialBps / 100).toFixed(0)}%</span>
               </div>
               <div>
-                <strong>Desconto da oportunidade</strong>
-                <span>{(ERH_MARKET_RULES.discountBps / 100).toFixed(1)}%</span>
+                <strong>Retorno do investidor</strong>
+                <span>{(ERH_MARKET_RULES.investorReturnBps / 100).toFixed(1)}%</span>
+              </div>
+              <div>
+                <strong>Fee Elas Recebem Hoje</strong>
+                <span>{(ERH_MARKET_RULES.marketFeeBps / 100).toFixed(1)}%</span>
+              </div>
+              <div>
+                <strong>Fee GRP</strong>
+                <span>{(ERH_MARKET_RULES.protocolFeeBps / 100).toFixed(1)}%</span>
               </div>
             </div>
 
