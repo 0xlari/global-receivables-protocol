@@ -155,6 +155,26 @@ pub mod global_receivables_protocol {
         Ok(())
     }
 
+    pub fn update_market_treasury(
+        ctx: Context<UpdateMarketTreasury>,
+        new_market_treasury: Pubkey,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(
+            new_market_treasury != Pubkey::default(),
+            GrpError::InvalidMarketTreasury
+        );
+        require!(
+            new_market_treasury != ctx.accounts.market_config.market_treasury,
+            GrpError::MarketTreasuryUnchanged
+        );
+
+        ctx.accounts.market_config.market_treasury = new_market_treasury;
+        ctx.accounts.market_config.updated_at = Clock::get()?.unix_timestamp;
+
+        Ok(())
+    }
+
     pub fn initialize_passport(ctx: Context<InitializePassport>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let passport = &mut ctx.accounts.passport;
@@ -976,6 +996,25 @@ pub struct InitializeMarket<'info> {
     pub authority: Signer<'info>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateMarketTreasury<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ GrpError::UnauthorizedAuthority
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"market-config", market_config.market_id_hash.as_ref()],
+        bump = market_config.bump
+    )]
+    pub market_config: Account<'info, MarketConfig>,
+
+    pub authority: Signer<'info>,
 }
 
 #[derive(Accounts)]
@@ -2155,6 +2194,8 @@ pub enum GrpError {
     MarketRulesMismatch,
     #[msg("The Market treasury is invalid.")]
     InvalidMarketTreasury,
+    #[msg("The Market treasury is already set to this address.")]
+    MarketTreasuryUnchanged,
     #[msg("The settlement destinations are invalid.")]
     InvalidSettlementDestinations,
     #[msg("A settlement token account is invalid.")]
