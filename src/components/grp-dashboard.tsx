@@ -204,8 +204,11 @@ export function GrpDashboard({
             {items.map((item) => {
               const linkState = links[item.id] ?? {};
               const canIssueLink =
-                (item.status === "AWAITING_CLIENT" || item.status === "UNDER_VALIDATION") &&
-                (item.confirmationStatus === "PENDING" || item.confirmationStatus === "ACCEPTED");
+                ((item.status === "AWAITING_CLIENT" || item.status === "UNDER_VALIDATION") &&
+                  (item.confirmationStatus === "PENDING" || item.confirmationStatus === "ACCEPTED")) ||
+                ((item.status === "ADVANCED" || item.status === "DUE") &&
+                  item.confirmationStatus === "ACCEPTED");
+              const isPaymentLink = item.status === "ADVANCED" || item.status === "DUE";
 
               return (
                 <div key={item.id}>
@@ -260,16 +263,8 @@ export function GrpDashboard({
                   {experience === "ERH" && item.status === "ADVANCED" ? (
                     <>
                       <small>
-                        Antecipação recebida. Próximo passo: acompanhar o vencimento e o pagamento do pagador.
+                        Antecipação recebida. Próximo passo: enviar o link de pagamento ao pagador no vencimento.
                       </small>
-                      <div className="demo-actions">
-                        <Link
-                          className="button button--secondary"
-                          href={"/elas-recebem-hoje/recebivel/" + item.id}
-                        >
-                          Ver recebível <ArrowRight size={16} />
-                        </Link>
-                      </div>
                     </>
                   ) : null}
 
@@ -282,7 +277,15 @@ export function GrpDashboard({
                         onClick={() => void issueLink(item.id)}
                       >
                         <Link2 size={16} />
-                        {linkState.loading ? "Gerando…" : linkState.url ? "Gerar outro link" : "Gerar link do pagador"}
+                        {linkState.loading
+                          ? "Gerando…"
+                          : linkState.url
+                            ? isPaymentLink
+                              ? "Gerar outro link de pagamento"
+                              : "Gerar outro link"
+                            : isPaymentLink
+                              ? "Gerar link de pagamento"
+                              : "Gerar link do pagador"}
                       </button>
 
                       {linkState.url ? (
@@ -309,7 +312,9 @@ export function GrpDashboard({
 
                   {linkState.url ? (
                     <small>
-                      O link foi reemitido por segurança. Se você gerar outro, o anterior deixa de funcionar.
+                      {isPaymentLink
+                        ? "Envie este link ao pagador para a liquidação em USDC. Se você gerar outro, o anterior deixa de funcionar."
+                        : "O link foi reemitido por segurança. Se você gerar outro, o anterior deixa de funcionar."}
                     </small>
                   ) : null}
                   {linkState.error ? <small className="form-error">{linkState.error}</small> : null}
