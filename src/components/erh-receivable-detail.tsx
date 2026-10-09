@@ -268,6 +268,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
       const built = await buildCreatePoolTransaction({
         requester,
         receivableId: item.id,
+        marketSlug: "elas-recebem-hoje",
         usdcMint: new PublicKey(usdcMintValue),
         targetAmountUsdcMinor,
         minimumPartialBps: minBps,
