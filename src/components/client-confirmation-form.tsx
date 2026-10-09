@@ -376,9 +376,11 @@ export function ClientConfirmationForm() {
           ? "Essa carteira não possui o USDC de teste configurado no GRP."
           : raw === "INSUFFICIENT_DEVNET_USDC"
             ? "Saldo de USDC Devnet insuficiente para liquidar este recebível."
-            : raw === "PAYER_NEEDS_DEVNET_SOL"
-              ? "A carteira do pagador precisa de um pequeno saldo de SOL Devnet para taxas."
-              : raw === "GRP_PAYER_COMMITMENT_NOT_FOUND"
+            : raw === "PAYER_NEEDS_MORE_DEVNET_SOL"
+              ? "A carteira do pagador precisa de pelo menos ~0,003 SOL Devnet para criar o settlement vault e pagar as taxas."
+              : raw.startsWith("GRP_REPAYMENT_SIMULATION_FAILED::")
+                ? "A simulação da Solana recusou o pagamento: " + raw.split("::").slice(1).join("::")
+                : raw === "GRP_PAYER_COMMITMENT_NOT_FOUND"
                 ? "O compromisso do pagador não foi encontrado on-chain."
                 : /simulation|failed to simulate|revert/i.test(raw)
                   ? "A Solana recusou o pagamento. Confirme Devnet, saldo de SOL, saldo de USDC e se a antecipação já foi liberada."

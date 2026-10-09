@@ -140,6 +140,19 @@ export async function buildPayerConfirmationTransaction(input: {
     lastValidBlockHeight,
   }).add(instruction);
 
+  const simulation = await connection.simulateTransaction(transaction);
+  if (simulation.value.err) {
+    const logs = simulation.value.logs ?? [];
+    const anchorLog =
+      [...logs].reverse().find((line) =>
+        line.includes("AnchorError") ||
+        line.includes("Error Code:") ||
+        line.includes("Program log: Error") ||
+        line.includes("custom program error")
+      ) ?? logs.at(-1) ?? "unknown simulation error";
+    throw new Error("GRP_REPAYMENT_SIMULATION_FAILED::" + anchorLog);
+  }
+
   return {
     connection,
     transaction,
@@ -529,7 +542,7 @@ export async function buildManualRepaymentTransaction(input: {
   if (!passportInfo) throw new Error("GRP_PASSPORT_NOT_FOUND_ON_DEVNET");
   if (!payerTokenInfo) throw new Error("PAYER_USDC_ACCOUNT_NOT_FOUND");
   if (settlementVaultInfo) throw new Error("GRP_SETTLEMENT_ALREADY_STARTED");
-  if (payerSolBalance === 0) throw new Error("PAYER_NEEDS_DEVNET_SOL");
+  if (payerSolBalance < 3_000_000) throw new Error("PAYER_NEEDS_MORE_DEVNET_SOL");
 
   const payerUsdcBalance = payerTokenInfo.data.readBigUInt64LE(64);
   if (payerUsdcBalance < input.amountUsdcMinor) {
