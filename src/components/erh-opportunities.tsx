@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, CircleDollarSign, HandCoins, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, CircleDollarSign, HandCoins, MessageCircle, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
 import { buildAcceptPartialFundingTransaction, buildClaimDistributionTransaction, buildDisbursePoolTransaction, buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
@@ -455,6 +455,29 @@ export function ErhOpportunities() {
               <div><dt>Prazo</dt><dd>{new Date(Number(item.fundingDeadlineUnix) * 1000).toLocaleDateString("pt-BR")}</dd></div>
               <div><dt>Vencimento</dt><dd>{new Date(item.dueAt).toLocaleDateString("pt-BR")}</dd></div>
             </dl>
+
+            <div className="demo-actions" style={{ marginTop: "1rem" }}>
+              <a
+                className="button button--secondary"
+                href={
+                  "https://wa.me/?text=" +
+                  encodeURIComponent(
+                    "Nova oportunidade no Elas Recebem Hoje\n\n" +
+                    item.description +
+                    "\nMeta: " + usdc(item.targetAmountUsdcMinor) +
+                    "\nFinanciado: " + progress + "%" +
+                    "\nDesconto: " + (item.discountBps / 100).toFixed(1) + "%" +
+                    "\nVencimento: " + new Date(item.dueAt).toLocaleDateString("pt-BR") +
+                    "\n\n" + window.location.origin + "/elas-recebem-hoje/oportunidades"
+                  )
+                }
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MessageCircle size={17} />
+                Compartilhar no WhatsApp
+              </a>
+            </div>
 
             {item.isRequester && canAcceptPartial ? (
               <div className="confirmation-form" style={{ marginTop: "1.25rem" }}>
