@@ -300,7 +300,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         ) : null}
 
         {item.status === "APPROVED" ? (
-          <div className="confirmation-form" style={{ marginTop: "2rem" }}>
+          <div id="criar-oportunidade" className="confirmation-form" style={{ marginTop: "2rem", scrollMarginTop: "7rem" }}>
             <span className="eyebrow"><CircleDollarSign size={16} /> Criar oportunidade</span>
             <h2>Abra este recebível para financiamento.</h2>
             <p>

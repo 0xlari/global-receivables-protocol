@@ -42,7 +42,7 @@ const statusLabels: Record<string, string> = {
   NEEDS_CORRECTION: "Correção necessária",
   REJECTED: "Não aprovado",
   APPROVED: "Aprovado",
-  POOLED: "Pool criada",
+  POOLED: "Oportunidade aberta",
   ADVANCED: "Antecipado",
   DUE: "Aguardando liquidação",
   PAID: "Pago",
@@ -224,6 +224,38 @@ export function GrpDashboard({
                       ? " · confirmação: " + (item.confirmationStatus === "PENDING" ? "pendente" : item.confirmationStatus.toLowerCase())
                       : ""}
                   </span>
+
+                  {experience === "ERH" && item.status === "APPROVED" ? (
+                    <>
+                      <small>
+                        Próximo passo: abra uma oportunidade para buscar liquidez para este recebível.
+                      </small>
+                      <div className="demo-actions">
+                        <Link
+                          className="button button--primary"
+                          href={"/elas-recebem-hoje/recebivel/" + item.id + "#criar-oportunidade"}
+                        >
+                          Criar oportunidade <ArrowRight size={16} />
+                        </Link>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {experience === "ERH" && item.status === "POOLED" ? (
+                    <>
+                      <small>
+                        Sua oportunidade já está aberta para funding.
+                      </small>
+                      <div className="demo-actions">
+                        <Link
+                          className="button button--primary"
+                          href="/elas-recebem-hoje/oportunidades"
+                        >
+                          Ver oportunidade <ArrowRight size={16} />
+                        </Link>
+                      </div>
+                    </>
+                  ) : null}
 
                   {canIssueLink ? (
                     <div className="demo-actions">
