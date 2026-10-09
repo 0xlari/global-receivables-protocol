@@ -1,7 +1,9 @@
 export const ERH_MARKET_RULES = {
   advanceBps: 8_000,
   minimumPartialBps: 5_000,
-  discountBps: 1_000,
+  discountBps: 350,
+  marketFeeBps: 100,
+  protocolFeeBps: 50,
 } as const;
 
 export function calculateErhTargetUsdcMinor(nominalUsdCents: bigint) {
