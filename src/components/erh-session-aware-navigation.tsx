@@ -54,6 +54,7 @@ export function ErhSessionAwareNavigation({ mobile = false }: { mobile?: boolean
       {session.status === "authenticated" ? (
         <>
           <Link href="/elas-recebem-hoje/painel">Meu painel</Link>
+          <Link href="/elas-recebem-hoje/passaporte">Meu Passport</Link>
           <Link href="/elas-recebem-hoje/carteira">Minha carteira</Link>
           <Link
             href="/elas-recebem-hoje/entrar?trocar=1&next=/elas-recebem-hoje/painel"
