@@ -233,10 +233,12 @@ export async function rotateGrpConfirmationLink<THKT extends PgQueryResultHKT>(
 
     if (
       receivable.status !== "AWAITING_CLIENT" &&
-      receivable.status !== "UNDER_VALIDATION"
+      receivable.status !== "UNDER_VALIDATION" &&
+      receivable.status !== "ADVANCED" &&
+      receivable.status !== "DUE"
     ) {
       throw new DomainError(
-        "Este recebível não aceita um novo link de confirmação.",
+        "Este recebível não aceita um novo link de confirmação ou pagamento.",
         "CONFIRMATION_LINK_NOT_AVAILABLE",
       );
     }

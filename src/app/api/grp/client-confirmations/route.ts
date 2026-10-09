@@ -1,7 +1,12 @@
+import { randomUUID } from "node:crypto";
+
+import { Connection, PublicKey } from "@solana/web3.js";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { databaseFromEnvironment } from "@/db/client";
+import { auditEvents, receivables } from "@/db/schema";
 import {
   confirmReceivable,
   inspectGrpClientConfirmation,
@@ -12,6 +17,11 @@ export const runtime = "nodejs";
 
 const requestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("inspect"), token: z.string().min(1).max(128) }),
+  z.object({
+    action: z.literal("settle"),
+    token: z.string().min(1).max(128),
+    signature: z.string().min(32).max(128),
+  }),
   z.object({
     action: z.literal("respond"),
     token: z.string().min(1).max(128),
@@ -55,6 +65,75 @@ export async function POST(request: Request) {
           confirmationStatus: details.confirmationStatus,
           confirmationExpiresAt: details.confirmationExpiresAt.toISOString(),
         },
+        { headers: privateHeaders },
+      );
+    }
+
+
+    if (body.action === "settle") {
+      const details = await inspectGrpClientConfirmation(bundle.db, body.token, now);
+      if (!details.requesterSolanaWallet) {
+        throw new Error("GRP_REQUESTER_WALLET_MISSING");
+      }
+
+      const connection = new Connection(
+        process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || "https://api.devnet.solana.com",
+        "confirmed",
+      );
+      const signature = await connection.getSignatureStatus(body.signature, {
+        searchTransactionHistory: true,
+      });
+      if (
+        !signature.value ||
+        signature.value.err ||
+        !["confirmed", "finalized"].includes(signature.value.confirmationStatus ?? "")
+      ) {
+        throw new Error("GRP_SETTLEMENT_TX_NOT_CONFIRMED");
+      }
+
+      const program = new PublicKey(
+        process.env.NEXT_PUBLIC_GRP_PROGRAM_ID?.trim() ||
+          "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY",
+      );
+      const requester = new PublicKey(details.requesterSolanaWallet);
+      const receivableIdBytes = Buffer.from(details.receivableId.replaceAll("-", ""), "hex");
+      const [receivablePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("receivable"), requester.toBuffer(), receivableIdBytes],
+        program,
+      );
+      const account = await connection.getAccountInfo(receivablePda, "confirmed");
+      if (!account || !account.owner.equals(program) || account.data.length <= 307) {
+        throw new Error("GRP_SETTLEMENT_STATE_NOT_FOUND");
+      }
+
+      const status = account.data[307];
+      if (status !== 9 && status !== 10) {
+        throw new Error("GRP_RECEIVABLE_NOT_PAID_ONCHAIN");
+      }
+
+      await bundle.db.transaction(async (tx) => {
+        await tx
+          .update(receivables)
+          .set({ status: "PAID", updatedAt: now })
+          .where(eq(receivables.id, details.receivableId));
+
+        await tx.insert(auditEvents).values({
+          id: randomUUID(),
+          actorId: null,
+          action: "GRP_PAYER_SETTLED",
+          targetType: "RECEIVABLE",
+          targetId: details.receivableId,
+          correlationId: randomUUID(),
+          after: {
+            signature: body.signature,
+            receivablePda: receivablePda.toBase58(),
+            onchainStatus: status === 10 ? "PAID_AFTER_DEFAULT" : "PAID",
+          },
+        });
+      });
+
+      return NextResponse.json(
+        { receivableId: details.receivableId, outcome: "PAID" },
         { headers: privateHeaders },
       );
     }
