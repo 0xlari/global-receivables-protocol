@@ -80,9 +80,9 @@
 .kicker {
   color: var(--signal);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: .72rem;
+  font-size: .68rem;
   font-weight: 800;
-  letter-spacing: .16em;
+  letter-spacing: .19em;
   text-transform: uppercase;
 }
 
@@ -100,7 +100,7 @@
 
 .opening h1 {
   margin-top: 1rem;
-  font-size: clamp(4rem, 9vw, 8.8rem);
+  font-size: clamp(4.2rem, 8.2vw, 8.2rem);
   font-weight: 760;
   letter-spacing: -.065em;
   text-wrap: balance;
@@ -146,14 +146,17 @@
 }
 
 .signalButton {
+  border: 1px solid rgba(57,255,136,.8);
+  border-radius: 999px;
   background: var(--signal);
   color: #061008;
   box-shadow: 0 0 36px rgba(57,255,136,.16);
 }
 
 .ghostButton {
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(57,255,136,.24);
+  border-radius: 999px;
+  background: rgba(255,255,255,.015);
   color: #d9ded8;
 }
 
