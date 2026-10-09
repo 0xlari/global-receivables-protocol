@@ -484,3 +484,14 @@
 - **Liquidação:** o pagamento exige uma nova assinatura do pagador no momento da liquidação, usando o fluxo de repayment assinado pelo próprio payer.
 - **Compatibilidade:** o PDA historicamente chamado `PayerAuthorization` permanece nesta versão por compatibilidade de estado/seed, mas semanticamente passa a representar o **Payer Commitment**.
 - **Consequência:** `settle_receivable` não pode realizar pull automático. Ao atingir o vencimento, ele apenas marca o recebível como due/payment-due; a transferência de USDC acontece somente com assinatura explícita do pagador.
+
+
+## ADR-060 — liquidação voluntária e distribuição do recebível
+
+- **Data:** 2026-10-08
+- **Status:** aprovada
+- **Decisão:** o pagador pode liquidar voluntariamente o recebível antes ou no vencimento. A data de vencimento representa o prazo máximo esperado, não um bloqueio para pagamento antecipado.
+- **Segurança:** o pagamento continua exigindo nova assinatura explícita do pagador; o GRP não possui permissão de débito automático.
+- **Settlement:** no pagamento, o GRP cria o settlement vault do recebível, recebe o USDC e marca a obrigação como liquidada.
+- **Distribuição:** após settlement, cada investidor resgata sua parcela proporcional usando a própria carteira.
+- **MVP:** o pagamento do pagador é integral em uma única transação. Pagamentos parciais ficam para uma versão posterior.

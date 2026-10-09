@@ -423,7 +423,9 @@ pub mod global_receivables_protocol {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
 
         let now = Clock::get()?.unix_timestamp;
-        require!(now >= ctx.accounts.receivable.due_at, GrpError::ReceivableNotDue);
+        // Voluntary early settlement is allowed. The due date is the latest
+        // expected payment date, not a lock that prevents the payer from
+        // settling the obligation sooner.
         require!(amount > 0, GrpError::InvalidAmount);
         require!(
             ctx.accounts.payer_authorization.status != PayerAuthorizationStatus::Settled,
