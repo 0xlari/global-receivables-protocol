@@ -170,6 +170,7 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         opportunities: opportunities.filter(Boolean),
+        serverNowMs: Date.now(),
       });
     });
   } catch (error) {

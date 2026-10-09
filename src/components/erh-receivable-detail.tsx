@@ -67,19 +67,20 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         window.location.assign("/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/recebivel/" + receivableId);
         return;
       }
-      const body = await response.json() as { receivable?: Receivable; error?: string };
+      const body = await response.json() as { receivable?: Receivable; error?: string; serverNowMs?: number };
       if (!response.ok || !body.receivable) throw new Error(body.error ?? "Não foi possível carregar este recebível.");
       if (body.receivable.marketSlug && body.receivable.marketSlug !== "elas-recebem-hoje") {
         throw new Error("Este recebível pertence a outro Market do GRP.");
       }
       setItem(body.receivable);
-      setCurrentTimeMs(Date.now());
+      const serverNowMs = body.serverNowMs ?? 0;
+      setCurrentTimeMs(serverNowMs);
       if (!targetUsd) {
         setTargetUsd(((Number(body.receivable.nominalUsdCents) / 100) * 0.8).toFixed(2));
       }
       if (!fundingDeadline) {
         const due = new Date(body.receivable.dueAt);
-        const deadline = new Date(Math.max(Date.now() + 86_400_000, due.getTime() - 86_400_000));
+        const deadline = new Date(Math.max(serverNowMs + 86_400_000, due.getTime() - 86_400_000));
         setFundingDeadline(deadline.toISOString().slice(0, 10));
       }
       setState("ready");
@@ -104,6 +105,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         const body = await response.json() as {
           receivable?: Receivable;
           error?: string;
+          serverNowMs?: number;
         };
 
         if (!response.ok || !body.receivable) {
@@ -118,13 +120,14 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         if (!active) return;
 
         setItem(body.receivable);
-        setCurrentTimeMs(Date.now());
+        const serverNowMs = body.serverNowMs ?? 0;
+        setCurrentTimeMs(serverNowMs);
         if (!targetUsd) {
           setTargetUsd(((Number(body.receivable.nominalUsdCents) / 100) * 0.8).toFixed(2));
         }
         if (!fundingDeadline) {
           const due = new Date(body.receivable.dueAt);
-          const deadline = new Date(Math.max(Date.now() + 86_400_000, due.getTime() - 86_400_000));
+          const deadline = new Date(Math.max(serverNowMs + 86_400_000, due.getTime() - 86_400_000));
           setFundingDeadline(deadline.toISOString().slice(0, 10));
         }
         setState("ready");
@@ -266,7 +269,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
       const deadlineUnix = BigInt(
         Math.floor(new Date(fundingDeadline + "T23:59:59").getTime() / 1000),
       );
-      const nowUnix = BigInt(Math.floor(Date.now() / 1000));
+      const nowUnix = BigInt(Math.floor(currentTimeMs / 1000));
       const dueUnix = BigInt(Math.floor(new Date(item.dueAt).getTime() / 1000));
       if (deadlineUnix <= nowUnix || deadlineUnix >= dueUnix) {
         throw new Error("O prazo de funding precisa ser futuro e anterior ao vencimento.");

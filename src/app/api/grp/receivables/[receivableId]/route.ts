@@ -86,6 +86,7 @@ export async function GET(
           marketName: row.marketName,
           requesterWallet: profile.solanaWallet,
         },
+        serverNowMs: Date.now(),
       }, { headers });
     });
   } catch (error) {

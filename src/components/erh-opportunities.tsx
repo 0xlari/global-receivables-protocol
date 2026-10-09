@@ -60,10 +60,10 @@ export function ErhOpportunities() {
         window.location.assign("/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/oportunidades");
         return;
       }
-      const body = await response.json() as { opportunities?: Opportunity[]; error?: string };
+      const body = await response.json() as { opportunities?: Opportunity[]; error?: string; serverNowMs?: number };
       if (!response.ok) throw new Error(body.error ?? "Não foi possível carregar as oportunidades.");
       setItems(body.opportunities ?? []);
-      setCurrentTimeMs(Date.now());
+      setCurrentTimeMs(body.serverNowMs ?? 0);
       setState("ready");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível carregar as oportunidades.");
@@ -79,11 +79,11 @@ export function ErhOpportunities() {
           window.location.assign("/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/oportunidades");
           return;
         }
-        const body = await response.json() as { opportunities?: Opportunity[]; error?: string };
+        const body = await response.json() as { opportunities?: Opportunity[]; error?: string; serverNowMs?: number };
         if (!response.ok) throw new Error(body.error ?? "Não foi possível carregar as oportunidades.");
         if (!active) return;
         setItems(body.opportunities ?? []);
-        setCurrentTimeMs(Date.now());
+        setCurrentTimeMs(body.serverNowMs ?? 0);
         setState("ready");
       })
       .catch((error: unknown) => {
