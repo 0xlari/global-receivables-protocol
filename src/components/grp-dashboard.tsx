@@ -257,6 +257,22 @@ export function GrpDashboard({
                     </>
                   ) : null}
 
+                  {experience === "ERH" && item.status === "ADVANCED" ? (
+                    <>
+                      <small>
+                        Antecipação recebida. Próximo passo: acompanhar o vencimento e o pagamento do pagador.
+                      </small>
+                      <div className="demo-actions">
+                        <Link
+                          className="button button--secondary"
+                          href={"/elas-recebem-hoje/recebivel/" + item.id}
+                        >
+                          Ver recebível <ArrowRight size={16} />
+                        </Link>
+                      </div>
+                    </>
+                  ) : null}
+
                   {canIssueLink ? (
                     <div className="demo-actions">
                       <button
