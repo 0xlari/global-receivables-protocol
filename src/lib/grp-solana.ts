@@ -1324,6 +1324,52 @@ export async function buildInitializeMarketTransaction(input: {
   };
 }
 
+export async function buildUpdateMarketTreasuryTransaction(input: {
+  authority: PublicKey;
+  marketSlug: string;
+  newMarketTreasury: PublicKey;
+}) {
+  const market = await getGrpMarketConfigStatus(input.marketSlug);
+  if (!market.initialized) throw new Error("GRP_MARKET_NOT_INITIALIZED_ON_DEVNET");
+  if (market.marketTreasury.equals(input.newMarketTreasury)) {
+    throw new Error("GRP_MARKET_TREASURY_ALREADY_SET");
+  }
+
+  const config = deriveGrpPdas({
+    requester: input.authority,
+    receivableId: "00000000-0000-0000-0000-000000000000",
+  }).config;
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: config, isSigner: false, isWritable: false },
+      { pubkey: market.marketConfig, isSigner: false, isWritable: true },
+      { pubkey: input.authority, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.concat([
+      Buffer.from(await anchorDiscriminator("update_market_treasury")),
+      input.newMarketTreasury.toBuffer(),
+    ]),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await market.connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.authority,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection: market.connection,
+    transaction,
+    marketConfig: market.marketConfig,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
 export async function buildInitializeProtocolTransaction(input: {
   authority: PublicKey;
   treasury: PublicKey;
