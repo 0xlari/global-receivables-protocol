@@ -523,3 +523,16 @@
 - **Responsabilidade do GRP:** estado financeiro canônico, settlement primitives, Receivable Passport, registry de Markets e infraestrutura compartilhada.
 - **Ativação:** uma proposta nunca ativa automaticamente um Market; no MVP do hackathon, propostas exigem revisão manual antes de qualquer ativação em banco ou on-chain.
 - **Próximo hardening:** mover regras críticas e MarketConfig para estado on-chain no P3, preservando a separação entre economia do Market e fee do protocolo.
+
+
+## ADR-063 — MarketConfig on-chain e enforcement econômico
+
+- **Data:** 2026-10-09
+- **Status:** implementada no P3.1; deploy Devnet pendente de build local
+- **Decisão:** regras econômicas críticas de cada Market deixam de depender apenas do frontend/API e passam a existir em um `MarketConfig` PDA controlado pela authority do GRP.
+- **MarketConfig:** registra hash canônico do Market, operator, treasury, status, advance rate, funding mínimo, retorno do investidor, Market fee, Protocol fee e versão de regras.
+- **Binding:** na criação de uma pool, um `ReceivableMarket` PDA vincula aquele recebível ao `MarketConfig` usado. O vínculo não exige alterar o layout dos recebíveis legados.
+- **Enforcement:** `create_pool` rejeita Market não `ACTIVE`, operator incompatível, target diferente do advance rate e parâmetros financeiros divergentes do MarketConfig.
+- **Settlement:** Market fee e Protocol fee passam a ser calculadas on-chain a partir do MarketConfig; a Market fee é enviada à treasury do Market e a Protocol fee à treasury do GRP. O residual continua retornando à recebedora.
+- **Compatibilidade:** pools antigas, criadas antes do `ReceivableMarket`, não recebem retroativamente o novo binding. Novas operações após o upgrade usam o caminho endurecido.
+- **Elas Recebem Hoje v1:** 80% advance, 50% funding mínimo, 3,5% retorno do investidor, 1% Market fee, 0,50% Protocol fee.
