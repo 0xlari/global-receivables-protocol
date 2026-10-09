@@ -495,3 +495,17 @@
 - **Settlement:** no pagamento, o GRP cria o settlement vault do recebível, recebe o USDC e marca a obrigação como liquidada.
 - **Distribuição:** após settlement, cada investidor resgata sua parcela proporcional usando a própria carteira.
 - **MVP:** o pagamento do pagador é integral em uma única transação. Pagamentos parciais ficam para uma versão posterior.
+
+
+## ADR-061 — economia de settlement do Elas Recebem Hoje
+
+- **Data:** 2026-10-09
+- **Status:** aprovada
+- **Advance rate:** 80% do valor de face do recebível.
+- **Retorno do investidor:** 3,5% sobre o capital efetivamente aportado na pool.
+- **Market fee (Elas Recebem Hoje):** 1,0% do valor de face liquidado.
+- **Protocol fee (GRP):** 0,50% do valor de face liquidado.
+- **Residual:** depois da liquidação pelo pagador, o saldo que sobra após principal + retorno dos investidores + Market fee + Protocol fee volta para a recebedora.
+- **Exemplo:** em um recebível de US$ 1.000 com US$ 800 financiados, os investidores recebem US$ 828, o Market recebe US$ 10, o GRP recebe US$ 5 e a recebedora recebe US$ 157 de residual.
+- **Regra de produto:** a originadora não escolhe essas taxas; elas são regras do Market.
+- **Compatibilidade:** o campo on-chain legado `discount_bps` passa a representar o retorno do investidor para pools novas, até a migração para um MarketConfig on-chain explícito.
