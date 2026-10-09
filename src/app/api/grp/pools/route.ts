@@ -1,5 +1,5 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import {
@@ -98,7 +98,7 @@ export async function GET(request: Request) {
         .leftJoin(markets, eq(markets.id, grpReceivableMarkets.marketId))
         .where(
           and(
-            eq(receivables.status, "POOLED"),
+            inArray(receivables.status, ["POOLED", "ADVANCED", "DUE", "PAID", "DEFAULTED"]),
             eq(markets.slug, "elas-recebem-hoje"),
           ),
         )
@@ -117,6 +117,37 @@ export async function GET(request: Request) {
             return null;
           }
 
+          let contribution = null as null | {
+            pda: string;
+            amountUsdcMinor: string;
+            distributedAmountUsdcMinor: string;
+            status: number;
+          };
+
+          if (profile.solanaWallet) {
+            const investor = new PublicKey(profile.solanaWallet);
+            const [contributionPda] = PublicKey.findProgramAddressSync(
+              [Buffer.from("contribution"), derived.pool.toBuffer(), investor.toBuffer()],
+              derived.program,
+            );
+            const contributionInfo = await connection.getAccountInfo(
+              contributionPda,
+              "confirmed",
+            );
+            if (
+              contributionInfo &&
+              contributionInfo.owner.equals(derived.program) &&
+              contributionInfo.data.length >= 97
+            ) {
+              contribution = {
+                pda: contributionPda.toBase58(),
+                amountUsdcMinor: contributionInfo.data.readBigUInt64LE(72).toString(),
+                distributedAmountUsdcMinor: contributionInfo.data.readBigUInt64LE(80).toString(),
+                status: contributionInfo.data[96] ?? 0,
+              };
+            }
+          }
+
           return {
             receivableId: row.receivableId,
             description: row.description,
@@ -132,6 +163,7 @@ export async function GET(request: Request) {
             discountBps: account.data.readUInt16LE(170),
             fundingDeadlineUnix: readI64(account.data, 172),
             status: poolStatus[account.data[188] ?? 0] ?? "UNKNOWN",
+            contribution,
           };
         }),
       );
