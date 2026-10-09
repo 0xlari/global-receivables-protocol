@@ -748,7 +748,9 @@ pub mod global_receivables_protocol {
     }
 
 
-    pub fn claim_settlement_residual(ctx: Context<ClaimSettlementResidual>) -> Result<()> {
+    pub fn claim_settlement_residual<'info>(
+        ctx: Context<'_, '_, '_, 'info, ClaimSettlementResidual<'info>>,
+    ) -> Result<()> {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
         require!(
             matches!(ctx.accounts.pool.status, PoolStatus::Settled | PoolStatus::Cured),
