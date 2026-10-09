@@ -57,9 +57,6 @@ export function Brand({ variant = "grp" }: { variant?: "grp" | "erh" }) {
       <span className="brand__mark brand__mark--grp" aria-hidden="true">
         <GrpMark />
       </span>
-      <span className="brand__name brand__name--grp">
-        <strong>Global Receivables Protocol</strong>
-      </span>
     </Link>
   );
 }
