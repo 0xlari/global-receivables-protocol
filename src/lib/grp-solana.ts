@@ -143,7 +143,6 @@ export async function buildPayerConfirmationTransaction(input: {
   ]);
 
   if (!configInfo) throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
-  if (!marketInfo) throw new Error("GRP_MARKET_NOT_INITIALIZED_ON_DEVNET");
   if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
   if (payerBalance === 0) throw new Error("PAYER_NEEDS_DEVNET_SOL");
 
