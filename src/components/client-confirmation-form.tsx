@@ -33,6 +33,7 @@ type Details = {
   grpUsdcMint?: string | null;
   confirmationStatus?: "PENDING" | "ACCEPTED";
   confirmationExpiresAt?: string;
+  receivableStatus?: string;
 };
 
 type Step = "confirm" | "authorize" | "pay" | "done";
@@ -135,10 +136,13 @@ export function ClientConfirmationForm() {
             receivableId: data.receivableId,
           });
           if (commitment.exists) {
-            if (Date.now() >= new Date(data.dueAt).getTime()) {
+            if (data.receivableStatus === "ADVANCED" || data.receivableStatus === "DUE") {
               setStep("pay");
+            } else if (data.receivableStatus === "PAID") {
+              setMessage("Este recebível já foi liquidado no GRP.");
+              setStep("done");
             } else {
-              setMessage("Compromisso registrado. O pagamento será liberado no vencimento.");
+              setMessage("Compromisso registrado. O pagamento será solicitado depois da liberação da antecipação.");
               setStep("done");
             }
           } else {
@@ -315,10 +319,6 @@ export function ClientConfirmationForm() {
     setMessage("");
 
     try {
-      if (Date.now() < new Date(details.dueAt).getTime()) {
-        throw new Error("O pagamento só pode ser feito a partir do vencimento.");
-      }
-
       const provider = browserWallet();
       if (!provider?.connect || !provider.signAndSendTransaction) {
         throw new Error("Nenhuma carteira Solana compatível foi encontrada neste navegador.");
@@ -377,7 +377,7 @@ export function ClientConfirmationForm() {
               : raw === "GRP_PAYER_COMMITMENT_NOT_FOUND"
                 ? "O compromisso do pagador não foi encontrado on-chain."
                 : /simulation|failed to simulate|revert/i.test(raw)
-                  ? "A Solana recusou o pagamento. Confirme Devnet, saldo de SOL, saldo de USDC e se o vencimento já chegou."
+                  ? "A Solana recusou o pagamento. Confirme Devnet, saldo de SOL, saldo de USDC e se a antecipação já foi liberada."
                   : raw;
       setMessage(friendly);
       setState("error");

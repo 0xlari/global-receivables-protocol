@@ -198,6 +198,7 @@ export async function inspectGrpClientConfirmation<THKT extends PgQueryResultHKT
     requesterSolanaWallet: row.requesterSolanaWallet,
     confirmationStatus: row.confirmation.status,
     confirmationExpiresAt: row.confirmation.expiresAt,
+    receivableStatus: row.receivable.status,
   };
 }
 

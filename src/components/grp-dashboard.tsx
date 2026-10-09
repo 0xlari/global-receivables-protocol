@@ -263,7 +263,7 @@ export function GrpDashboard({
                   {experience === "ERH" && item.status === "ADVANCED" ? (
                     <>
                       <small>
-                        Antecipação recebida. Próximo passo: enviar o link de pagamento ao pagador no vencimento.
+                        Antecipação recebida. Próximo passo: enviar o link de pagamento ao pagador para liquidar o recebível.
                       </small>
                     </>
                   ) : null}

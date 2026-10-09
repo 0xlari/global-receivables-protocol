@@ -64,6 +64,7 @@ export async function POST(request: Request) {
           grpUsdcMint: process.env.NEXT_PUBLIC_GRP_USDC_MINT ?? null,
           confirmationStatus: details.confirmationStatus,
           confirmationExpiresAt: details.confirmationExpiresAt.toISOString(),
+          receivableStatus: details.receivableStatus,
         },
         { headers: privateHeaders },
       );
