@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { ArrowRight, CircleDollarSign, HandCoins, MessageCircle, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
-import { buildAcceptPartialFundingTransaction, buildClaimDistributionTransaction, buildDisbursePoolTransaction, buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
+import { buildAcceptPartialFundingTransaction, buildClaimDistributionTransaction, buildClaimSettlementResidualTransaction, buildDisbursePoolTransaction, buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
+import { ERH_MARKET_RULES } from "@/config/erh-market-rules";
 
 type Opportunity = {
   receivableId: string;
@@ -28,6 +29,7 @@ type Opportunity = {
     distributedAmountUsdcMinor: string;
     status: number;
   };
+  residualClaimed: boolean;
 };
 
 type FundingState = {
@@ -93,6 +95,93 @@ export function ErhOpportunities() {
       });
     return () => { active = false; };
   }, []);
+
+  async function claimResidual(item: Opportunity) {
+    const current = funding[item.poolPda] ?? {};
+    setFunding((state) => ({
+      ...state,
+      [item.poolPda]: { ...current, releaseWorking: true, message: "" },
+    }));
+
+    try {
+      const provider = (window as Window & { solana?: BrowserSolanaProvider }).solana;
+      if (!provider?.connect || !provider.signAndSendTransaction) {
+        throw new Error("Nenhuma carteira Solana compatível foi encontrada.");
+      }
+
+      const connected = await provider.connect();
+      const requester = new PublicKey(connected.publicKey.toBase58());
+      if (requester.toBase58() !== item.requesterWallet) {
+        throw new Error("Conecte a carteira da pessoa que criou este recebível.");
+      }
+
+      const usdcMintValue = process.env.NEXT_PUBLIC_GRP_USDC_MINT?.trim();
+      if (!usdcMintValue) throw new Error("O mint USDC do GRP não está configurado.");
+
+      const built = await buildClaimSettlementResidualTransaction({
+        requester,
+        receivableId: item.receivableId,
+        usdcMint: new PublicKey(usdcMintValue),
+      });
+
+      const sent = await provider.signAndSendTransaction(built.transaction);
+      await built.connection.confirmTransaction(
+        {
+          signature: sent.signature,
+          blockhash: built.blockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+
+      const response = await fetch(
+        "/api/grp/pools/" + item.receivableId + "/residual",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signature: sent.signature }),
+        },
+      );
+      const body = await response.json() as {
+        error?: string;
+        requesterResidualAmountUsdcMinor?: string;
+        marketFeeAmountUsdcMinor?: string;
+        protocolFeeAmountUsdcMinor?: string;
+      };
+      if (!response.ok) {
+        throw new Error(body.error ?? "A distribuição confirmou, mas não pôde ser sincronizada.");
+      }
+
+      setFunding((state) => ({
+        ...state,
+        [item.poolPda]: {
+          ...state[item.poolPda],
+          releaseWorking: false,
+          message:
+            "Residual recebido: " +
+            usdc(body.requesterResidualAmountUsdcMinor ?? "0") +
+            ". Fees do Market e do GRP também foram distribuídas.",
+        },
+      }));
+      await refresh();
+    } catch (error) {
+      const raw =
+        error instanceof Error ? error.message : "Não foi possível distribuir o residual.";
+      const friendly =
+        raw === "GRP_SETTLEMENT_RESIDUAL_ALREADY_CLAIMED"
+          ? "O residual e as fees desta liquidação já foram distribuídos."
+          : raw === "GRP_SETTLEMENT_VAULT_NOT_FOUND"
+            ? "O pagamento do pagador ainda não foi recebido pelo GRP."
+            : /simulation|failed to simulate|revert/i.test(raw)
+              ? "A Solana recusou a distribuição. Confirme a carteira da solicitante e se o recebível já foi liquidado."
+              : raw;
+
+      setFunding((state) => ({
+        ...state,
+        [item.poolPda]: { ...current, releaseWorking: false, message: friendly },
+      }));
+    }
+  }
 
   async function claim(item: Opportunity) {
     const current = funding[item.poolPda] ?? {};
@@ -438,6 +527,19 @@ export function ErhOpportunities() {
           Boolean(item.contribution) &&
           (item.status === "SETTLED" || item.status === "CURED") &&
           BigInt(item.contribution?.distributedAmountUsdcMinor ?? "0") === 0n;
+        const canClaimResidual =
+          item.isRequester &&
+          (item.status === "SETTLED" || item.status === "CURED") &&
+          !item.residualClaimed;
+        const faceValue = Number(item.nominalUsdCents) * 10_000;
+        const investorTotal =
+          funded * (1 + item.discountBps / 10_000);
+        const marketFee = faceValue * (ERH_MARKET_RULES.marketFeeBps / 10_000);
+        const protocolFee = faceValue * (ERH_MARKET_RULES.protocolFeeBps / 10_000);
+        const estimatedResidual = Math.max(
+          0,
+          faceValue - investorTotal - marketFee - protocolFee,
+        );
 
         return (
           <article key={item.poolPda}>
@@ -450,7 +552,9 @@ export function ErhOpportunities() {
               <div><dt>Meta</dt><dd>{usdc(item.targetAmountUsdcMinor)}</dd></div>
               <div><dt>Financiado</dt><dd>{usdc(item.fundedAmountUsdcMinor)} · {progress}%</dd></div>
               <div><dt>Disponível</dt><dd>{usdc(String(remaining))}</dd></div>
-              <div><dt>Desconto</dt><dd>{(item.discountBps / 100).toFixed(1)}%</dd></div>
+              <div><dt>Retorno do investidor</dt><dd>{(item.discountBps / 100).toFixed(1)}%</dd></div>
+              <div><dt>Fee Elas Recebem Hoje</dt><dd>{(ERH_MARKET_RULES.marketFeeBps / 100).toFixed(1)}%</dd></div>
+              <div><dt>Fee GRP</dt><dd>{(ERH_MARKET_RULES.protocolFeeBps / 100).toFixed(1)}%</dd></div>
               <div><dt>Funding mínimo</dt><dd>{(item.minimumPartialBps / 100).toFixed(0)}%</dd></div>
               <div><dt>Prazo</dt><dd>{new Date(Number(item.fundingDeadlineUnix) * 1000).toLocaleDateString("pt-BR")}</dd></div>
               <div><dt>Vencimento</dt><dd>{new Date(item.dueAt).toLocaleDateString("pt-BR")}</dd></div>
@@ -466,7 +570,7 @@ export function ErhOpportunities() {
                     item.description +
                     "\nMeta: " + usdc(item.targetAmountUsdcMinor) +
                     "\nFinanciado: " + progress + "%" +
-                    "\nDesconto: " + (item.discountBps / 100).toFixed(1) + "%" +
+                    "\nRetorno do investidor: " + (item.discountBps / 100).toFixed(1) + "%" +
                     "\nVencimento: " + new Date(item.dueAt).toLocaleDateString("pt-BR") +
                     "\n\n" + window.location.origin + "/elas-recebem-hoje/oportunidades"
                   )
@@ -518,6 +622,35 @@ export function ErhOpportunities() {
                   {current.releaseWorking ? "Aguardando carteira…" : "Receber antecipação"}
                 </button>
                 {current.message ? <p role="status">{current.message}</p> : null}
+              </div>
+            ) : null}
+
+            {canClaimResidual ? (
+              <div className="confirmation-form" style={{ marginTop: "1.25rem" }}>
+                <span className="eyebrow"><HandCoins size={16} /> Saldo residual disponível</span>
+                <h4>Receba {usdc(String(Math.floor(estimatedResidual)))} após a liquidação.</h4>
+                <p>
+                  Ao confirmar, o GRP separa automaticamente o retorno dos investidores,
+                  a fee do Elas Recebem Hoje, a fee do protocolo e libera o saldo restante
+                  para a sua carteira.
+                </p>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={current.releaseWorking}
+                  onClick={() => void claimResidual(item)}
+                >
+                  <HandCoins size={17} />
+                  {current.releaseWorking ? "Aguardando carteira…" : "Receber saldo residual"}
+                </button>
+                {current.message ? <p role="status">{current.message}</p> : null}
+              </div>
+            ) : null}
+
+            {item.isRequester && item.residualClaimed ? (
+              <div className="confirmation-form__security" style={{ marginTop: "1.25rem" }}>
+                <ShieldCheck size={18} />
+                Saldo residual e fees já distribuídos nesta liquidação.
               </div>
             ) : null}
 
