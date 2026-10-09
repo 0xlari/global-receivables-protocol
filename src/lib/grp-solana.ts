@@ -505,6 +505,11 @@ export async function buildManualRepaymentTransaction(input: {
     input.usdcMint,
     input.payer,
   );
+  const settlementVault = await getAssociatedTokenAddress(
+    input.usdcMint,
+    pdas.payerAuthorization,
+    true,
+  );
 
   const [
     receivableInfo,
@@ -520,7 +525,7 @@ export async function buildManualRepaymentTransaction(input: {
     connection.getAccountInfo(pool, "confirmed"),
     connection.getAccountInfo(passport, "confirmed"),
     connection.getAccountInfo(payerTokenAccount, "confirmed"),
-    connection.getAccountInfo(pdas.settlementVault, "confirmed"),
+    connection.getAccountInfo(settlementVault, "confirmed"),
     connection.getBalance(input.payer, "confirmed"),
   ]);
 
@@ -546,11 +551,10 @@ export async function buildManualRepaymentTransaction(input: {
       { pubkey: input.payer, isSigner: true, isWritable: true },
       { pubkey: input.usdcMint, isSigner: false, isWritable: false },
       { pubkey: payerTokenAccount, isSigner: false, isWritable: true },
-      { pubkey: pdas.settlementVault, isSigner: false, isWritable: true },
+      { pubkey: settlementVault, isSigner: false, isWritable: true },
       { pubkey: pool, isSigner: false, isWritable: true },
       { pubkey: passport, isSigner: false, isWritable: true },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data: Buffer.concat([
       Buffer.from(await anchorDiscriminator("manual_repayment")),
@@ -564,7 +568,20 @@ export async function buildManualRepaymentTransaction(input: {
     feePayer: input.payer,
     blockhash,
     lastValidBlockHeight,
-  }).add(instruction);
+  });
+
+  if (!settlementVaultInfo) {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        input.payer,
+        settlementVault,
+        pdas.payerAuthorization,
+        input.usdcMint,
+      ),
+    );
+  }
+
+  transaction.add(instruction);
 
   const simulation = await connection.simulateTransaction(transaction);
   if (simulation.value.err) {
@@ -585,7 +602,7 @@ export async function buildManualRepaymentTransaction(input: {
     transaction,
     receivable: pdas.receivable,
     payerAuthorization: pdas.payerAuthorization,
-    settlementVault: pdas.settlementVault,
+    settlementVault,
     payerTokenAccount,
     pool,
     passport,
@@ -617,11 +634,16 @@ export async function buildClaimDistributionTransaction(input: {
     input.usdcMint,
     input.investor,
   );
+  const settlementVault = await getAssociatedTokenAddress(
+    input.usdcMint,
+    pdas.payerAuthorization,
+    true,
+  );
 
   const [contributionInfo, settlementVaultInfo, investorTokenInfo] =
     await Promise.all([
       connection.getAccountInfo(contribution, "confirmed"),
-      connection.getAccountInfo(pdas.settlementVault, "confirmed"),
+      connection.getAccountInfo(settlementVault, "confirmed"),
       connection.getAccountInfo(investorTokenAccount, "confirmed"),
     ]);
 
@@ -640,7 +662,7 @@ export async function buildClaimDistributionTransaction(input: {
       { pubkey: input.investor, isSigner: true, isWritable: false },
       { pubkey: input.usdcMint, isSigner: false, isWritable: false },
       { pubkey: investorTokenAccount, isSigner: false, isWritable: true },
-      { pubkey: pdas.settlementVault, isSigner: false, isWritable: true },
+      { pubkey: settlementVault, isSigner: false, isWritable: true },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
     data: Buffer.from(await anchorDiscriminator("claim_distribution")),
@@ -659,7 +681,7 @@ export async function buildClaimDistributionTransaction(input: {
     transaction,
     contribution,
     investorTokenAccount,
-    settlementVault: pdas.settlementVault,
+    settlementVault,
     blockhash,
     lastValidBlockHeight,
   };

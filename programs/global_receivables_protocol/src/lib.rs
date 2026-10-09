@@ -1182,13 +1182,7 @@ pub struct ManualRepayment<'info> {
     pub payer_token_account: Account<'info, TokenAccount>,
 
     #[account(
-        init,
-        payer = payer,
-        seeds = [
-            b"settlement-vault",
-            receivable.key().as_ref()
-        ],
-        bump,
+        mut,
         token::mint = usdc_mint,
         token::authority = payer_authorization
     )]
@@ -1211,7 +1205,6 @@ pub struct ManualRepayment<'info> {
     pub passport: Account<'info, ReceivablePassport>,
 
     pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -1281,8 +1274,6 @@ pub struct ClaimDistribution<'info> {
     #[account(
         mut,
         address = payer_authorization.settlement_vault @ GrpError::InvalidSettlementVault,
-        seeds = [b"settlement-vault", receivable.key().as_ref()],
-        bump,
         token::mint = usdc_mint,
         token::authority = payer_authorization
     )]
