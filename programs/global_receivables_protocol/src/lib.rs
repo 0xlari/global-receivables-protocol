@@ -1467,14 +1467,14 @@ pub struct ClaimSettlementResidual<'info> {
     #[account(
         mut,
         token::mint = usdc_mint,
-        token::authority = receivable.originator
+        constraint = market_token_account.owner == receivable.originator @ GrpError::InvalidOriginator
     )]
     pub market_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         token::mint = usdc_mint,
-        token::authority = config.treasury
+        constraint = protocol_token_account.owner == config.treasury @ GrpError::InvalidTreasury
     )]
     pub protocol_token_account: Account<'info, TokenAccount>,
 
