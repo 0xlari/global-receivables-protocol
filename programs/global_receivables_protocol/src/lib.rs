@@ -3,9 +3,6 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
-const ERH_MARKET_FEE_BPS: u64 = 100;
-const GRP_PROTOCOL_FEE_BPS: u64 = 50;
-
 #[program]
 pub mod global_receivables_protocol {
     use super::*;
