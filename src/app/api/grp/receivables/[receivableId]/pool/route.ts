@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auditEvents, receivables } from "@/db/schema";
+import { ERH_MARKET_RULES, calculateErhTargetUsdcMinor } from "@/config/erh-market-rules";
 import { assertJsonPayloadSize, assertSameOrigin, enforceRateLimit } from "@/lib/api-security";
 import { withSessionProfile } from "@/lib/app-session";
 
@@ -82,9 +83,13 @@ export async function POST(
       }
 
       const targetAmount = BigInt(body.targetAmountUsdcMinor);
-      const nominalUsdcMinor = receivable.nominalAmount * 10_000n;
-      if (targetAmount > nominalUsdcMinor) {
-        throw new Error("POOL_TARGET_EXCEEDS_RECEIVABLE");
+      const expectedTargetAmount = calculateErhTargetUsdcMinor(receivable.nominalAmount);
+      if (
+        targetAmount !== expectedTargetAmount ||
+        body.minimumPartialBps !== ERH_MARKET_RULES.minimumPartialBps ||
+        body.discountBps !== ERH_MARKET_RULES.discountBps
+      ) {
+        throw new Error("ERH_MARKET_RULES_MISMATCH");
       }
 
       const fundingDeadlineUnix = BigInt(body.fundingDeadlineUnix);
