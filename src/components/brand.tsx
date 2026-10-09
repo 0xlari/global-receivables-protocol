@@ -4,27 +4,20 @@ function GrpMark() {
   return (
     <svg
       className="brand__grp-symbol"
-      viewBox="0 0 104 34"
+      viewBox="0 0 126 36"
       role="img"
       aria-label="GRP"
     >
-      <defs>
-        <linearGradient id="grp-wordmark-gradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="72%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#39ff88" />
-        </linearGradient>
-      </defs>
       <g
         fill="none"
-        stroke="url(#grp-wordmark-gradient)"
-        strokeWidth="5"
+        stroke="currentColor"
+        strokeWidth="5.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M31 7H12C6 7 4 10.5 4 17s2 10 8 10h19v-9H21" />
-        <path d="M40 27V7h16c5 0 7 2.2 7 6.2S61 19.4 56 19.4H40m12 0L64 27" />
-        <path d="M73 27V7h16c5 0 7 2.2 7 6.2s-2 6.2-7 6.2H73" />
+        <path d="M35 7H14C7.5 7 4 10.4 4 18s3.5 11 10 11h21V19H23" />
+        <path d="M45 29V7h21c6 0 9 2.4 9 6.4s-3 6.4-9 6.4H45m16 0 15 9.2" />
+        <path d="M86 29V7h22c6 0 9 2.4 9 6.4s-3 6.4-9 6.4H86" />
       </g>
     </svg>
   );
