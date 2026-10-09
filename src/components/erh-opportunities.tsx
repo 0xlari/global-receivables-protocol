@@ -121,6 +121,7 @@ export function ErhOpportunities() {
       const built = await buildClaimSettlementResidualTransaction({
         requester,
         receivableId: item.receivableId,
+        marketSlug: "elas-recebem-hoje",
         usdcMint: new PublicKey(usdcMintValue),
       });
 
