@@ -53,6 +53,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
   const [copied, setCopied] = useState(false);
   const [poolWorking, setPoolWorking] = useState(false);
   const [delinquencyWorking, setDelinquencyWorking] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [targetUsd, setTargetUsd] = useState("");
   const [minimumPartialPercent, setMinimumPartialPercent] = useState("50");
   const [discountPercent, setDiscountPercent] = useState("10");
@@ -72,6 +73,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         throw new Error("Este recebível pertence a outro Market do GRP.");
       }
       setItem(body.receivable);
+      setCurrentTimeMs(Date.now());
       if (!targetUsd) {
         setTargetUsd(((Number(body.receivable.nominalUsdCents) / 100) * 0.8).toFixed(2));
       }
@@ -116,6 +118,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         if (!active) return;
 
         setItem(body.receivable);
+        setCurrentTimeMs(Date.now());
         if (!targetUsd) {
           setTargetUsd(((Number(body.receivable.nominalUsdCents) / 100) * 0.8).toFixed(2));
         }
@@ -335,7 +338,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
     item.status === "ADVANCED" || item.status === "DUE" || item.status === "DEFAULTED";
   const delinquencyEligible =
     (item.status === "ADVANCED" || item.status === "DUE") &&
-    Date.now() >= new Date(item.dueAt).getTime() + 86_400_000;
+    currentTimeMs >= new Date(item.dueAt).getTime() + 86_400_000;
 
   return (
     <div className="dashboard">

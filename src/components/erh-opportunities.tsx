@@ -49,6 +49,7 @@ export function ErhOpportunities() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
   const [funding, setFunding] = useState<Record<string, FundingState>>({});
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   async function refresh() {
     setState("loading");
@@ -62,6 +63,7 @@ export function ErhOpportunities() {
       const body = await response.json() as { opportunities?: Opportunity[]; error?: string };
       if (!response.ok) throw new Error(body.error ?? "Não foi possível carregar as oportunidades.");
       setItems(body.opportunities ?? []);
+      setCurrentTimeMs(Date.now());
       setState("ready");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível carregar as oportunidades.");
@@ -81,6 +83,7 @@ export function ErhOpportunities() {
         if (!response.ok) throw new Error(body.error ?? "Não foi possível carregar as oportunidades.");
         if (!active) return;
         setItems(body.opportunities ?? []);
+        setCurrentTimeMs(Date.now());
         setState("ready");
       })
       .catch((error: unknown) => {
@@ -419,7 +422,7 @@ export function ErhOpportunities() {
         const progress = target > 0 ? Math.min(100, Math.round((funded / target) * 100)) : 0;
         const remaining = Math.max(0, target - funded);
         const current = funding[item.poolPda] ?? {};
-        const deadlinePassed = Date.now() > Number(item.fundingDeadlineUnix) * 1000;
+        const deadlinePassed = currentTimeMs > Number(item.fundingDeadlineUnix) * 1000;
         const fundedBps = target > 0 ? Math.floor((funded * 10_000) / target) : 0;
         const open = item.status === "OPEN" && remaining > 0 && !deadlinePassed;
         const canAcceptPartial =
