@@ -103,7 +103,39 @@ export function ReceivablePassport() {
   }
 
   useEffect(() => {
-    void load();
+    let active = true;
+
+    fetch("/api/grp/passport", { cache: "no-store" })
+      .then(async (response) => {
+        if (response.status === 401) {
+          window.location.assign(
+            "/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/passaporte",
+          );
+          return;
+        }
+
+        const body = (await response.json()) as PassportResponse;
+        if (!response.ok) {
+          throw new Error(body.error ?? "Não foi possível carregar o Passport.");
+        }
+        if (!active) return;
+
+        setData(body);
+        setState("ready");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar o Passport.",
+        );
+        setState("error");
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const summary = useMemo(() => {
