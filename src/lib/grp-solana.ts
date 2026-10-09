@@ -8,7 +8,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 
 const DEFAULT_GRP_PROGRAM_ID = "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY";
 
@@ -234,6 +234,106 @@ export async function buildCreatePoolTransaction(input: {
     transaction,
     pool,
     poolVault,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
+
+export async function buildFundPoolTransaction(input: {
+  investor: PublicKey;
+  requester: PublicKey;
+  receivableId: string;
+  usdcMint: PublicKey;
+  amountUsdcMinor: bigint;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [poolVault] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool-vault"), pool.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [contribution] = PublicKey.findProgramAddressSync(
+    [Buffer.from("contribution"), pool.toBuffer(), input.investor.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const investorTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    input.investor,
+  );
+
+  const [
+    configInfo,
+    receivableInfo,
+    poolInfo,
+    contributionInfo,
+    investorTokenInfo,
+    investorSolBalance,
+  ] = await Promise.all([
+    connection.getAccountInfo(pdas.config, "confirmed"),
+    connection.getAccountInfo(pdas.receivable, "confirmed"),
+    connection.getAccountInfo(pool, "confirmed"),
+    connection.getAccountInfo(contribution, "confirmed"),
+    connection.getAccountInfo(investorTokenAccount, "confirmed"),
+    connection.getBalance(input.investor, "confirmed"),
+  ]);
+
+  if (!configInfo) throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
+  if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  if (!poolInfo) throw new Error("GRP_POOL_NOT_FOUND_ON_DEVNET");
+  if (contributionInfo) throw new Error("GRP_INVESTOR_ALREADY_FUNDED_POOL");
+  if (!investorTokenInfo) throw new Error("INVESTOR_USDC_ACCOUNT_NOT_FOUND");
+  if (investorSolBalance === 0) throw new Error("INVESTOR_NEEDS_DEVNET_SOL");
+  if (investorTokenInfo.data.length < 72) throw new Error("INVALID_USDC_TOKEN_ACCOUNT");
+
+  const investorUsdcBalance = investorTokenInfo.data.readBigUInt64LE(64);
+  if (investorUsdcBalance < input.amountUsdcMinor) {
+    throw new Error("INSUFFICIENT_DEVNET_USDC");
+  }
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+      { pubkey: pool, isSigner: false, isWritable: true },
+      { pubkey: contribution, isSigner: false, isWritable: true },
+      { pubkey: input.investor, isSigner: true, isWritable: true },
+      { pubkey: input.usdcMint, isSigner: false, isWritable: false },
+      { pubkey: investorTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: poolVault, isSigner: false, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.concat([
+      Buffer.from(await anchorDiscriminator("fund_pool")),
+      Buffer.from(u64le(input.amountUsdcMinor)),
+    ]),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.investor,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection,
+    transaction,
+    pool,
+    poolVault,
+    contribution,
+    investorTokenAccount,
+    investorUsdcBalance,
     blockhash,
     lastValidBlockHeight,
   };
