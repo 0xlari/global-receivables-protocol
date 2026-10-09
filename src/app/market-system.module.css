@@ -4,16 +4,17 @@
   --surface2:#0d110e;
   --text:#f2f5ef;
   --muted:#8e988f;
-  --signal:#8cff98;
-  --violet:#8c67ff;
-  --line:rgba(140,255,152,.14);
+  --signal:#39ff88;
+  --violet:#39ff88;
+  --line:rgba(57,255,136,.14);
   min-height:100vh;
   background:var(--bg);
   color:var(--text);
+  font-family:"Inter","Segoe UI",ui-sans-serif,system-ui,sans-serif;
 }
 .page * { box-sizing:border-box; }
-.hero { position:relative; min-height:76svh; display:grid; align-items:end; overflow:hidden; padding:8rem 7vw 5rem; background:radial-gradient(circle at 78% 24%,rgba(140,255,152,.09),transparent 22rem),radial-gradient(circle at 18% 68%,rgba(140,103,255,.07),transparent 18rem),#030504; }
-.hero::after{ position:absolute; inset:0; content:""; pointer-events:none; background-image:linear-gradient(rgba(140,255,152,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(140,255,152,.035) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to bottom,#000,transparent 90%); }
+.hero { position:relative; min-height:76svh; display:grid; align-items:end; overflow:hidden; padding:8rem 7vw 5rem; background:radial-gradient(circle at 78% 24%,rgba(57,255,136,.09),transparent 22rem),radial-gradient(circle at 18% 68%,rgba(57,255,136,.035),transparent 18rem),#030504; }
+.hero::after{ position:absolute; inset:0; content:""; pointer-events:none; background-image:linear-gradient(rgba(57,255,136,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(57,255,136,.035) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to bottom,#000,transparent 90%); }
 .heroInner{position:relative;z-index:1;width:min(1180px,100%);margin:0 auto;}
 .kicker,.eyebrow{ color:var(--signal); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.69rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase; }
 .hero h1,.section h2,.marketHero h2,.apply h2,.directoryTitle{ margin:0;letter-spacing:-.055em;line-height:.95; }
@@ -23,7 +24,7 @@
 .primary,.secondary{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:.5rem;padding:.8rem 1rem;border-radius:.25rem;font-weight:800;}
 .primary{background:var(--signal);color:#061008;}
 .secondary{border:1px solid rgba(255,255,255,.14);color:#d8ddd8;background:rgba(255,255,255,.02);}
-.section{padding:8rem 7vw;border-top:1px solid rgba(140,255,152,.08);}
+.section{padding:8rem 7vw;border-top:1px solid rgba(57,255,136,.08);}
 .sectionInner{width:min(1180px,100%);margin:0 auto;}
 .sectionLead{display:grid;grid-template-columns:1fr .8fr;gap:5rem;align-items:end;margin-bottom:3.5rem;}
 .section h2{margin-top:.8rem;font-size:clamp(3.2rem,6vw,6.2rem);}
@@ -45,39 +46,39 @@
 .feeCard span{display:block;margin-top:.5rem;color:#d9dfd8;font-weight:800;}
 .feeCard p{color:#7f8980;line-height:1.65;}
 .feeRows{display:grid;margin-top:1.2rem;}
-.feeRows div{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid rgba(140,255,152,.1);padding:.8rem 0;}
+.feeRows div{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid rgba(57,255,136,.1);padding:.8rem 0;}
 .feeRows dt{color:#6f796f}.feeRows dd{margin:0;font-weight:800;text-align:right;}
-.apply{padding:8rem 7vw;background:radial-gradient(circle at 50% 0,rgba(140,255,152,.07),transparent 24rem),#020403;}
+.apply{padding:8rem 7vw;background:radial-gradient(circle at 50% 0,rgba(57,255,136,.07),transparent 24rem),#020403;}
 .applyInner{width:min(1080px,100%);margin:0 auto;}
 .apply h2{margin-top:.8rem;font-size:clamp(3.5rem,7vw,7rem);}
 .formShell{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:3rem;}
 .field{display:grid;gap:.45rem;color:#a5ada6;font-size:.82rem;font-weight:700;}
 .fieldWide{grid-column:1/-1;}
-.field input,.field select,.field textarea{width:100%;border:1px solid rgba(140,255,152,.15);border-radius:.25rem;background:#0a0d0b;color:#eff5ef;padding:.9rem 1rem;font:inherit;}
+.field input,.field select,.field textarea{width:100%;border:1px solid rgba(57,255,136,.15);border-radius:.25rem;background:#0a0d0b;color:#eff5ef;padding:.9rem 1rem;font:inherit;}
 .field textarea{min-height:130px;resize:vertical;}
 .formNote{grid-column:1/-1;color:#69736a;font-size:.78rem;line-height:1.5;}
-.disabledSubmit{grid-column:1/-1;justify-self:start;border:1px solid rgba(140,255,152,.16);background:rgba(140,255,152,.07);color:#b7c2b8;padding:.8rem 1rem;font-weight:800;cursor:not-allowed;}
+.disabledSubmit{grid-column:1/-1;justify-self:start;border:1px solid rgba(57,255,136,.16);background:rgba(57,255,136,.07);color:#b7c2b8;padding:.8rem 1rem;font-weight:800;cursor:not-allowed;}
 .directory{padding:8rem 7vw;background:#030504;}
 .directoryInner{width:min(1180px,100%);margin:0 auto;}
 .directoryTitle{margin-top:.8rem;font-size:clamp(3.6rem,7vw,7rem);}
 .directoryIntro{max-width:680px;color:var(--muted);line-height:1.7;}
 .marketGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-top:3rem;}
-.marketCard{position:relative;min-height:430px;border:1px solid var(--line);background:radial-gradient(circle at 80% 10%,rgba(140,255,152,.07),transparent 15rem),#080b09;padding:1.5rem;display:flex;flex-direction:column;}
+.marketCard{position:relative;min-height:430px;border:1px solid var(--line);background:radial-gradient(circle at 80% 10%,rgba(57,255,136,.07),transparent 15rem),#080b09;padding:1.5rem;display:flex;flex-direction:column;}
 .marketCardMuted{opacity:.72;}
 .marketTop{display:flex;justify-content:space-between;gap:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.66rem;letter-spacing:.11em;text-transform:uppercase;color:#69736a;}
 .status{color:var(--signal);}
 .marketCard h2{margin:auto 0 .4rem;font-size:clamp(2.4rem,4vw,4rem);letter-spacing:-.05em;line-height:.95;}
 .marketCard p{max-width:560px;color:#8d978e;line-height:1.6;}
-.marketMeta{display:grid;grid-template-columns:1fr 1fr;gap:.55rem 1rem;border-top:1px solid rgba(140,255,152,.1);padding-top:1rem;margin-top:1.2rem;}
+.marketMeta{display:grid;grid-template-columns:1fr 1fr;gap:.55rem 1rem;border-top:1px solid rgba(57,255,136,.1);padding-top:1rem;margin-top:1.2rem;}
 .marketMeta span{color:#657066;font-size:.72rem;text-transform:uppercase;}
 .marketMeta strong{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;}
 .marketActions{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1.5rem;}
-.marketHero{padding:7rem 7vw;background:#050706;border-top:1px solid rgba(140,255,152,.08);}
+.marketHero{padding:7rem 7vw;background:#050706;border-top:1px solid rgba(57,255,136,.08);}
 .marketHeroInner{width:min(1180px,100%);margin:0 auto;display:grid;grid-template-columns:1fr .9fr;gap:5rem;align-items:center;}
 .marketHero h2{margin-top:.8rem;font-size:clamp(3rem,6vw,6rem);}
 .marketHero p{color:#8f988f;line-height:1.7;}
 .marketRail{border-left:1px solid var(--line);padding-left:1.2rem;}
-.marketRail div{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid rgba(140,255,152,.1);padding:.8rem 0;}
+.marketRail div{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid rgba(57,255,136,.1);padding:.8rem 0;}
 .marketRail div:first-child{border-top:0;}
 .marketRail span{color:#687269}.marketRail strong{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;}
 @media(max-width:900px){.sectionLead,.economics,.marketHeroInner{grid-template-columns:1fr}.process{grid-template-columns:repeat(2,1fr)}.roles,.marketGrid{grid-template-columns:1fr}}
