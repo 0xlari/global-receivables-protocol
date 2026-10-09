@@ -218,13 +218,6 @@
     mask-image: linear-gradient(#000, transparent 78%);
   }
 
-  .openingAtmosphere {
-    right: -34%;
-    top: 73%;
-    width: 120vw;
-    opacity: .42;
-  }
-
   .openingCenter {
     width: 100%;
   }
