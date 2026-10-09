@@ -688,6 +688,154 @@ export async function buildClaimDistributionTransaction(input: {
 }
 
 
+
+export async function buildClaimSettlementResidualTransaction(input: {
+  requester: PublicKey;
+  receivableId: string;
+  usdcMint: PublicKey;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [settlementDistribution] = PublicKey.findProgramAddressSync(
+    [Buffer.from("settlement-distribution"), pool.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+
+  const [configInfo, receivableInfo, poolInfo, distributionInfo, requesterSol] =
+    await Promise.all([
+      connection.getAccountInfo(pdas.config, "confirmed"),
+      connection.getAccountInfo(pdas.receivable, "confirmed"),
+      connection.getAccountInfo(pool, "confirmed"),
+      connection.getAccountInfo(settlementDistribution, "confirmed"),
+      connection.getBalance(input.requester, "confirmed"),
+    ]);
+
+  if (!configInfo || configInfo.data.length < 72) {
+    throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
+  }
+  if (!receivableInfo || receivableInfo.data.length < 88) {
+    throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  }
+  if (!poolInfo) throw new Error("GRP_POOL_NOT_FOUND_ON_DEVNET");
+  if (distributionInfo) throw new Error("GRP_SETTLEMENT_RESIDUAL_ALREADY_CLAIMED");
+  if (requesterSol === 0) throw new Error("REQUESTER_NEEDS_DEVNET_SOL");
+
+  const protocolTreasury = new PublicKey(configInfo.data.subarray(40, 72));
+  const marketTreasury = new PublicKey(receivableInfo.data.subarray(56, 88));
+
+  const requesterTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    input.requester,
+  );
+  const marketTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    marketTreasury,
+  );
+  const protocolTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    protocolTreasury,
+  );
+  const settlementVault = await getAssociatedTokenAddress(
+    input.usdcMint,
+    pdas.payerAuthorization,
+    true,
+  );
+
+  const [
+    requesterTokenInfo,
+    marketTokenInfo,
+    protocolTokenInfo,
+    settlementVaultInfo,
+  ] = await Promise.all([
+    connection.getAccountInfo(requesterTokenAccount, "confirmed"),
+    connection.getAccountInfo(marketTokenAccount, "confirmed"),
+    connection.getAccountInfo(protocolTokenAccount, "confirmed"),
+    connection.getAccountInfo(settlementVault, "confirmed"),
+  ]);
+
+  if (!settlementVaultInfo) throw new Error("GRP_SETTLEMENT_VAULT_NOT_FOUND");
+
+  const transaction = new Transaction();
+
+  if (!requesterTokenInfo) {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        input.requester,
+        requesterTokenAccount,
+        input.requester,
+        input.usdcMint,
+      ),
+    );
+  }
+  if (!marketTokenInfo) {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        input.requester,
+        marketTokenAccount,
+        marketTreasury,
+        input.usdcMint,
+      ),
+    );
+  }
+  if (!protocolTokenInfo && !protocolTokenAccount.equals(marketTokenAccount)) {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        input.requester,
+        protocolTokenAccount,
+        protocolTreasury,
+        input.usdcMint,
+      ),
+    );
+  }
+
+  transaction.add(
+    new TransactionInstruction({
+      programId: GRP_PROGRAM_ID,
+      keys: [
+        { pubkey: pdas.config, isSigner: false, isWritable: false },
+        { pubkey: pdas.receivable, isSigner: false, isWritable: false },
+        { pubkey: pool, isSigner: false, isWritable: false },
+        { pubkey: pdas.payerAuthorization, isSigner: false, isWritable: false },
+        { pubkey: input.requester, isSigner: true, isWritable: true },
+        { pubkey: input.usdcMint, isSigner: false, isWritable: false },
+        { pubkey: requesterTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: marketTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: protocolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: settlementVault, isSigner: false, isWritable: true },
+        { pubkey: settlementDistribution, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: Buffer.from(await anchorDiscriminator("claim_settlement_residual")),
+    }),
+  );
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  transaction.feePayer = input.requester;
+  transaction.recentBlockhash = blockhash;
+
+  return {
+    connection,
+    transaction,
+    settlementDistribution,
+    requesterTokenAccount,
+    marketTokenAccount,
+    protocolTokenAccount,
+    marketTreasury,
+    protocolTreasury,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
 export async function buildProcessDelinquencyTransaction(input: {
   feePayer: PublicKey;
   requester: PublicKey;
