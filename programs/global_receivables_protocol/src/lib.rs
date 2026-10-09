@@ -1861,6 +1861,30 @@ mod tests {
     }
 
     #[test]
+    fn erh_settlement_economics_match_example() {
+        let face = 1_000_000_000u128;
+        let funded = 800_000_000u128;
+        let investor_return_bps = 350u128;
+        let investor_total = funded * (10_000 + investor_return_bps) / 10_000;
+        let market_fee = face * u128::from(ERH_MARKET_FEE_BPS) / 10_000;
+        let protocol_fee = face * u128::from(GRP_PROTOCOL_FEE_BPS) / 10_000;
+        let residual = face - investor_total - market_fee - protocol_fee;
+
+        assert_eq!(investor_total, 828_000_000);
+        assert_eq!(market_fee, 10_000_000);
+        assert_eq!(protocol_fee, 5_000_000);
+        assert_eq!(residual, 157_000_000);
+    }
+
+    #[test]
+    fn investor_distribution_uses_pool_return_bps() {
+        let contribution = 600_000_000u128;
+        let return_bps = 350u128;
+        let due = contribution * (10_000 + return_bps) / 10_000;
+        assert_eq!(due, 621_000_000);
+    }
+
+    #[test]
     fn passport_treats_clean_settlement_as_on_time_signal() {
         let had_payment_failure = false;
         assert!(!had_payment_failure);
