@@ -5,12 +5,15 @@ import { CheckCircle2, CircleAlert, LoaderCircle, WalletCards } from "lucide-rea
 import { PublicKey } from "@solana/web3.js";
 
 import {
+  buildInitializeMarketTransaction,
   buildInitializeProtocolTransaction,
+  getGrpMarketConfigStatus,
   getGrpProtocolStatus,
   GRP_PROGRAM_ID,
   GRP_RPC_URL,
   type BrowserSolanaProvider,
 } from "@/lib/grp-solana";
+import { ERH_MARKET_RULES } from "@/config/erh-market-rules";
 
 type SessionProfile = {
   id: string;
@@ -26,8 +29,24 @@ type ProtocolState = {
   paused?: boolean;
 };
 
+type MarketState = {
+  initialized: boolean;
+  marketConfig?: string;
+  operator?: string;
+  marketTreasury?: string;
+  status?: number;
+  advanceBps?: number;
+  minimumPartialBps?: number;
+  investorReturnBps?: number;
+  marketFeeBps?: number;
+  protocolFeeBps?: number;
+  rulesVersion?: number;
+};
+
 const configuredAuthority = process.env.NEXT_PUBLIC_GRP_ORIGINATOR_WALLET ?? "";
 const configuredUsdcMint = process.env.NEXT_PUBLIC_GRP_USDC_MINT ?? "";
+const configuredMarketTreasury =
+  process.env.NEXT_PUBLIC_ERH_MARKET_TREASURY ?? configuredAuthority;
 
 function browserWallet() {
   return (window as Window & { solana?: BrowserSolanaProvider }).solana;
@@ -41,6 +60,7 @@ export function GrpProtocolSetup() {
   const [profile, setProfile] = useState<SessionProfile>();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [protocol, setProtocol] = useState<ProtocolState>({ initialized: false });
+  const [market, setMarket] = useState<MarketState>({ initialized: false });
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
@@ -62,6 +82,30 @@ export function GrpProtocolSetup() {
     });
   }
 
+  async function refreshMarket() {
+    const status = await getGrpMarketConfigStatus("elas-recebem-hoje");
+    if (!status.initialized) {
+      setMarket({
+        initialized: false,
+        marketConfig: status.marketConfig.toBase58(),
+      });
+      return;
+    }
+    setMarket({
+      initialized: true,
+      marketConfig: status.marketConfig.toBase58(),
+      operator: status.operator.toBase58(),
+      marketTreasury: status.marketTreasury.toBase58(),
+      status: status.status,
+      advanceBps: status.advanceBps,
+      minimumPartialBps: status.minimumPartialBps,
+      investorReturnBps: status.investorReturnBps,
+      marketFeeBps: status.marketFeeBps,
+      protocolFeeBps: status.protocolFeeBps,
+      rulesVersion: status.rulesVersion,
+    });
+  }
+
   useEffect(() => {
     void (async () => {
       try {
@@ -77,7 +121,7 @@ export function GrpProtocolSetup() {
         }
         setProfile(body.profile);
         setAuthenticated(true);
-        await refreshProtocol();
+        await Promise.all([refreshProtocol(), refreshMarket()]);
       } catch {
         setMessage("Não foi possível ler o estado do GRP na Devnet.");
       } finally {
@@ -135,6 +179,73 @@ export function GrpProtocolSetup() {
             : text,
       );
       await refreshProtocol().catch(() => undefined);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function initializeMarket() {
+    setWorking(true);
+    setMessage("");
+    setSignature("");
+
+    try {
+      if (!protocol.initialized) {
+        throw new Error("Inicialize o ProtocolConfig antes do MarketConfig.");
+      }
+      if (!profile?.solanaWallet || profile.solanaWallet !== configuredAuthority) {
+        throw new Error("Entre com a carteira authority configurada do GRP.");
+      }
+
+      const provider = browserWallet();
+      if (!provider?.connect || !provider.signAndSendTransaction) {
+        throw new Error("Nenhuma carteira Solana compatível foi encontrada neste navegador.");
+      }
+
+      const connected = await provider.connect();
+      const authority = new PublicKey(connected.publicKey.toBase58());
+      if (authority.toBase58() !== configuredAuthority) {
+        throw new Error("Conecte a carteira authority configurada para o GRP.");
+      }
+
+      const built = await buildInitializeMarketTransaction({
+        authority,
+        marketSlug: "elas-recebem-hoje",
+        operator: new PublicKey(configuredAuthority),
+        marketTreasury: new PublicKey(configuredMarketTreasury),
+        status: "ACTIVE",
+        advanceBps: ERH_MARKET_RULES.advanceBps,
+        minimumPartialBps: ERH_MARKET_RULES.minimumPartialBps,
+        investorReturnBps: ERH_MARKET_RULES.investorReturnBps,
+        marketFeeBps: ERH_MARKET_RULES.marketFeeBps,
+        protocolFeeBps: ERH_MARKET_RULES.protocolFeeBps,
+        rulesVersion: 1,
+      });
+
+      const sent = await provider.signAndSendTransaction(built.transaction);
+      await built.connection.confirmTransaction(
+        {
+          signature: sent.signature,
+          blockhash: built.blockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+
+      setSignature(sent.signature);
+      setMessage("MarketConfig do Elas Recebem Hoje inicializado na Devnet.");
+      await refreshMarket();
+    } catch (error) {
+      const text =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível inicializar o MarketConfig.";
+      setMessage(
+        text === "GRP_MARKET_ALREADY_INITIALIZED"
+          ? "O MarketConfig do Elas Recebem Hoje já está inicializado."
+          : text,
+      );
+      await refreshMarket().catch(() => undefined);
     } finally {
       setWorking(false);
     }
@@ -207,6 +318,50 @@ export function GrpProtocolSetup() {
           >
             {working ? <LoaderCircle className="spin" size={19} /> : <WalletCards size={19} />}
             {working ? "Aguardando assinatura…" : "Inicializar protocolo"}
+          </button>
+        </>
+      )}
+
+      <hr style={{ margin: "2rem 0", opacity: 0.2 }} />
+
+      <span className="kicker">MarketConfig · P3</span>
+      <h2>Elas Recebem Hoje</h2>
+      <p>
+        As regras econômicas do Market passam a ser verificadas pelo programa Solana,
+        e não apenas pela interface ou API.
+      </p>
+
+      {market.initialized ? (
+        <>
+          <div className="confirmation-form__security">
+            <CheckCircle2 />
+            MarketConfig ativo na Devnet.
+          </div>
+          <dl className="authorization-review">
+            <div><dt>MarketConfig PDA</dt><dd><code>{short(market.marketConfig ?? "")}</code></dd></div>
+            <div><dt>Operator</dt><dd><code>{short(market.operator ?? "")}</code></dd></div>
+            <div><dt>Market treasury</dt><dd><code>{short(market.marketTreasury ?? "")}</code></dd></div>
+            <div><dt>Advance</dt><dd>{((market.advanceBps ?? 0) / 100).toFixed(0)}%</dd></div>
+            <div><dt>Retorno investidor</dt><dd>{((market.investorReturnBps ?? 0) / 100).toFixed(1)}%</dd></div>
+            <div><dt>Market fee</dt><dd>{((market.marketFeeBps ?? 0) / 100).toFixed(1)}%</dd></div>
+            <div><dt>GRP fee</dt><dd>{((market.protocolFeeBps ?? 0) / 100).toFixed(2)}%</dd></div>
+            <div><dt>Rules version</dt><dd>{market.rulesVersion ?? "—"}</dd></div>
+          </dl>
+        </>
+      ) : (
+        <>
+          <div className="confirmation-form__security">
+            <CircleAlert />
+            O Market existe na aplicação, mas ainda não possui MarketConfig on-chain.
+          </div>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={working || !authorizedSession || !protocol.initialized}
+            onClick={() => void initializeMarket()}
+          >
+            {working ? <LoaderCircle className="spin" size={19} /> : <WalletCards size={19} />}
+            {working ? "Aguardando assinatura…" : "Inicializar MarketConfig ERH"}
           </button>
         </>
       )}
