@@ -121,23 +121,28 @@ export function GrpExperience() {
     <div className={styles.page}>
       <section className={styles.opening}>
         <div className={styles.openingNoise} />
-        <div className={styles.openingTop}>
-          <span>GLOBAL RECEIVABLES PROTOCOL</span>
-          <span className={styles.live}><i /> LIVE · SOLANA DEVNET</span>
+        <div className={styles.openingAtmosphere} aria-hidden="true">
+          <i />
+          <i />
+          <i />
         </div>
 
         <div className={styles.openingCenter}>
-          <p className={styles.openingOverline}>FUTURE PAYMENTS · GLOBAL LIQUIDITY</p>
-          <h1>Money moves globally.<br />Receivables should too.</h1>
+          <p className={styles.openingOverline}><i /> GLOBAL RECEIVABLES PROTOCOL</p>
+          <h1>Money moves<br />globally.<br />Receivables<br />should too.</h1>
           <p>
-            GRP turns verified future payments into programmable, financeable receivables
-            settled in USDC on Solana.
+            Unlock liquidity in the real economy with a global, programmable
+            receivables network settled in USDC on Solana.
           </p>
           <div className={styles.openingActions}>
             <Link href="/markets" className={styles.signalButton}>
-              Explore markets <ArrowRight size={18} />
+              Launch <ArrowRight size={18} />
             </Link>
             <Link href="/como-funciona" className={styles.ghostButton}>Explore the protocol</Link>
+          </div>
+          <div className={styles.openingMeta}>
+            <span><i /> LIVE · SOLANA DEVNET</span>
+            <span>MARKETCONFIG ON-CHAIN</span>
           </div>
         </div>
 
