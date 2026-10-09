@@ -139,10 +139,10 @@ svg {
 
 .brand--grp .brand__grp-symbol {
   display: block;
-  width: 7rem;
-  height: 2.35rem;
+  width: 7.8rem;
+  height: 2.5rem;
   overflow: visible;
-  filter: drop-shadow(0 0 12px rgba(57,255,136,.1));
+  color: #ffffff;
 }
 
 .site-header--grp {
@@ -2103,8 +2103,8 @@ svg {
   }
 
   .site-header--grp .brand__grp-symbol {
-    width: 5.6rem;
-    height: 1.95rem;
+    width: 5.9rem;
+    height: 2rem;
   }
 
   .site-header--grp .mobile-nav summary {
