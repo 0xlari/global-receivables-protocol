@@ -70,7 +70,7 @@ const poolStatus = [
 
 export async function GET(request: Request) {
   try {
-    return await withSessionProfile(request, async ({ db }) => {
+    return await withSessionProfile(request, async ({ profile, db }) => {
       const rows = await db
         .select({
           receivableId: receivables.id,
@@ -124,6 +124,7 @@ export async function GET(request: Request) {
             dueAt: row.dueAt.toISOString(),
             marketName: row.marketName,
             requesterWallet: row.requesterWallet,
+            isRequester: profile.solanaWallet === row.requesterWallet,
             poolPda: derived.pool.toBase58(),
             targetAmountUsdcMinor: readU64(account.data, 136),
             fundedAmountUsdcMinor: readU64(account.data, 144),
