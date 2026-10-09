@@ -60,6 +60,37 @@ export function u64le(value: bigint) {
   return result;
 }
 
+export function u16le(value: number) {
+  if (!Number.isInteger(value) || value < 0 || value > 10_000) {
+    throw new Error("Invalid basis points.");
+  }
+  return Uint8Array.of(value & 0xff, (value >> 8) & 0xff);
+}
+
+async function marketIdHash(slug: string) {
+  const bytes = new TextEncoder().encode(slug.trim().toLowerCase());
+  if (!bytes.length) throw new Error("INVALID_MARKET_SLUG");
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+}
+
+export async function deriveMarketPdas(input: {
+  marketSlug: string;
+  receivable?: PublicKey;
+}) {
+  const hash = await marketIdHash(input.marketSlug);
+  const [marketConfig] = PublicKey.findProgramAddressSync(
+    [Buffer.from("market-config"), Buffer.from(hash)],
+    GRP_PROGRAM_ID,
+  );
+  const receivableMarket = input.receivable
+    ? PublicKey.findProgramAddressSync(
+        [Buffer.from("receivable-market"), input.receivable.toBuffer()],
+        GRP_PROGRAM_ID,
+      )[0]
+    : null;
+  return { marketIdHash: hash, marketConfig, receivableMarket };
+}
+
 export function deriveGrpPdas(input: {
   requester: PublicKey;
   receivableId: string;
@@ -112,6 +143,7 @@ export async function buildPayerConfirmationTransaction(input: {
   ]);
 
   if (!configInfo) throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
+  if (!marketInfo) throw new Error("GRP_MARKET_NOT_INITIALIZED_ON_DEVNET");
   if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
   if (payerBalance === 0) throw new Error("PAYER_NEEDS_DEVNET_SOL");
 
@@ -154,6 +186,7 @@ export async function buildPayerConfirmationTransaction(input: {
 export async function buildCreatePoolTransaction(input: {
   requester: PublicKey;
   receivableId: string;
+  marketSlug: string;
   usdcMint: PublicKey;
   targetAmountUsdcMinor: bigint;
   minimumPartialBps: number;
@@ -180,9 +213,15 @@ export async function buildCreatePoolTransaction(input: {
     [Buffer.from("pool-vault"), pool.toBuffer()],
     GRP_PROGRAM_ID,
   );
+  const market = await deriveMarketPdas({
+    marketSlug: input.marketSlug,
+    receivable: pdas.receivable,
+  });
+  if (!market.receivableMarket) throw new Error("GRP_RECEIVABLE_MARKET_PDA_FAILED");
 
-  const [configInfo, receivableInfo, existingPool, payerBalance] = await Promise.all([
+  const [configInfo, marketInfo, receivableInfo, existingPool, payerBalance] = await Promise.all([
     connection.getAccountInfo(pdas.config, "confirmed"),
+    connection.getAccountInfo(market.marketConfig, "confirmed"),
     connection.getAccountInfo(pdas.receivable, "confirmed"),
     connection.getAccountInfo(pool, "confirmed"),
     connection.getBalance(input.requester, "confirmed"),
@@ -211,6 +250,8 @@ export async function buildCreatePoolTransaction(input: {
     programId: GRP_PROGRAM_ID,
     keys: [
       { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: market.marketConfig, isSigner: false, isWritable: false },
+      { pubkey: market.receivableMarket, isSigner: false, isWritable: true },
       { pubkey: pdas.receivable, isSigner: false, isWritable: true },
       { pubkey: pool, isSigner: false, isWritable: true },
       { pubkey: poolVault, isSigner: false, isWritable: true },
@@ -235,6 +276,8 @@ export async function buildCreatePoolTransaction(input: {
     transaction,
     pool,
     poolVault,
+    marketConfig: market.marketConfig,
+    receivableMarket: market.receivableMarket,
     blockhash,
     lastValidBlockHeight,
   };
@@ -692,6 +735,7 @@ export async function buildClaimDistributionTransaction(input: {
 export async function buildClaimSettlementResidualTransaction(input: {
   requester: PublicKey;
   receivableId: string;
+  marketSlug: string;
   usdcMint: PublicKey;
 }) {
   const connection = new Connection(GRP_RPC_URL, "confirmed");
@@ -707,10 +751,17 @@ export async function buildClaimSettlementResidualTransaction(input: {
     [Buffer.from("settlement-distribution"), pool.toBuffer()],
     GRP_PROGRAM_ID,
   );
+  const market = await deriveMarketPdas({
+    marketSlug: input.marketSlug,
+    receivable: pdas.receivable,
+  });
+  if (!market.receivableMarket) throw new Error("GRP_RECEIVABLE_MARKET_PDA_FAILED");
 
-  const [configInfo, receivableInfo, poolInfo, distributionInfo, requesterSol] =
+  const [configInfo, marketInfo, receivableMarketInfo, receivableInfo, poolInfo, distributionInfo, requesterSol] =
     await Promise.all([
       connection.getAccountInfo(pdas.config, "confirmed"),
+      connection.getAccountInfo(market.marketConfig, "confirmed"),
+      connection.getAccountInfo(market.receivableMarket, "confirmed"),
       connection.getAccountInfo(pdas.receivable, "confirmed"),
       connection.getAccountInfo(pool, "confirmed"),
       connection.getAccountInfo(settlementDistribution, "confirmed"),
@@ -720,6 +771,12 @@ export async function buildClaimSettlementResidualTransaction(input: {
   if (!configInfo || configInfo.data.length < 72) {
     throw new Error("GRP_PROTOCOL_NOT_AVAILABLE_ON_DEVNET");
   }
+  if (!marketInfo || marketInfo.data.length < 134) {
+    throw new Error("GRP_MARKET_NOT_INITIALIZED_ON_DEVNET");
+  }
+  if (!receivableMarketInfo) {
+    throw new Error("GRP_RECEIVABLE_MARKET_NOT_BOUND");
+  }
   if (!receivableInfo || receivableInfo.data.length < 88) {
     throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
   }
@@ -728,7 +785,7 @@ export async function buildClaimSettlementResidualTransaction(input: {
   if (requesterSol === 0) throw new Error("REQUESTER_NEEDS_DEVNET_SOL");
 
   const protocolTreasury = new PublicKey(configInfo.data.subarray(40, 72));
-  const marketTreasury = new PublicKey(receivableInfo.data.subarray(56, 88));
+  const marketTreasury = new PublicKey(marketInfo.data.subarray(72, 104));
 
   const requesterTokenAccount = await getAssociatedTokenAddress(
     input.usdcMint,
@@ -800,6 +857,8 @@ export async function buildClaimSettlementResidualTransaction(input: {
       programId: GRP_PROGRAM_ID,
       keys: [
         { pubkey: pdas.config, isSigner: false, isWritable: false },
+        { pubkey: market.marketConfig, isSigner: false, isWritable: false },
+        { pubkey: market.receivableMarket, isSigner: false, isWritable: false },
         { pubkey: pdas.receivable, isSigner: false, isWritable: false },
         { pubkey: pool, isSigner: false, isWritable: false },
         { pubkey: pdas.payerAuthorization, isSigner: false, isWritable: false },
@@ -1164,6 +1223,104 @@ export async function getGrpProtocolStatus() {
     usdcMint,
     protocolVersion,
     paused,
+  };
+}
+
+export async function getGrpMarketConfigStatus(marketSlug: string) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const derived = await deriveMarketPdas({ marketSlug });
+  const account = await connection.getAccountInfo(derived.marketConfig, "confirmed");
+  if (!account) {
+    return {
+      initialized: false as const,
+      connection,
+      marketConfig: derived.marketConfig,
+      marketIdHash: derived.marketIdHash,
+    };
+  }
+  if (account.data.length < 134) {
+    throw new Error("GRP MarketConfig account has an unexpected size.");
+  }
+
+  return {
+    initialized: true as const,
+    connection,
+    marketConfig: derived.marketConfig,
+    marketIdHash: derived.marketIdHash,
+    operator: new PublicKey(account.data.subarray(40, 72)),
+    marketTreasury: new PublicKey(account.data.subarray(72, 104)),
+    status: account.data[104] ?? 0,
+    advanceBps: account.data.readUInt16LE(105),
+    minimumPartialBps: account.data.readUInt16LE(107),
+    investorReturnBps: account.data.readUInt16LE(109),
+    marketFeeBps: account.data.readUInt16LE(111),
+    protocolFeeBps: account.data.readUInt16LE(113),
+    rulesVersion: account.data.readUInt16LE(115),
+  };
+}
+
+export async function buildInitializeMarketTransaction(input: {
+  authority: PublicKey;
+  marketSlug: string;
+  operator: PublicKey;
+  marketTreasury: PublicKey;
+  status: "PROPOSED" | "SANDBOX" | "ACTIVE" | "PAUSED" | "SUSPENDED" | "RETIRED";
+  advanceBps: number;
+  minimumPartialBps: number;
+  investorReturnBps: number;
+  marketFeeBps: number;
+  protocolFeeBps: number;
+  rulesVersion: number;
+}) {
+  const status = await getGrpMarketConfigStatus(input.marketSlug);
+  if (status.initialized) throw new Error("GRP_MARKET_ALREADY_INITIALIZED");
+
+  const statusIndex = {
+    PROPOSED: 0,
+    SANDBOX: 1,
+    ACTIVE: 2,
+    PAUSED: 3,
+    SUSPENDED: 4,
+    RETIRED: 5,
+  }[input.status];
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: deriveGrpPdas({ requester: input.authority, receivableId: "00000000-0000-0000-0000-000000000000" }).config, isSigner: false, isWritable: false },
+      { pubkey: status.marketConfig, isSigner: false, isWritable: true },
+      { pubkey: input.authority, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.concat([
+      Buffer.from(await anchorDiscriminator("initialize_market")),
+      Buffer.from(status.marketIdHash),
+      input.operator.toBuffer(),
+      input.marketTreasury.toBuffer(),
+      Buffer.from([statusIndex]),
+      Buffer.from(u16le(input.advanceBps)),
+      Buffer.from(u16le(input.minimumPartialBps)),
+      Buffer.from(u16le(input.investorReturnBps)),
+      Buffer.from(u16le(input.marketFeeBps)),
+      Buffer.from(u16le(input.protocolFeeBps)),
+      Buffer.from(u16le(input.rulesVersion)),
+    ]),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await status.connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.authority,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection: status.connection,
+    transaction,
+    marketConfig: status.marketConfig,
+    blockhash,
+    lastValidBlockHeight,
   };
 }
 
