@@ -130,6 +130,99 @@ svg {
   font-weight: 750;
 }
 
+.brand--grp {
+  gap: .75rem;
+  color: #f5f7f3;
+}
+
+.brand__mark--grp {
+  width: 4.15rem;
+  height: 2rem;
+  border-radius: 0;
+  background: transparent;
+  color: #f5f7f3;
+  transform: none;
+}
+
+.brand__grp-symbol {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 11px rgba(57,255,136,.14));
+}
+
+.brand__name--grp {
+  max-width: 8rem;
+  color: #f5f7f3;
+  font-family: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-size: .64rem;
+  font-weight: 650;
+  letter-spacing: .11em;
+  line-height: 1.18;
+  text-transform: uppercase;
+}
+
+.site-header--grp {
+  border-bottom-color: rgba(57,255,136,.09);
+  background: rgba(5,8,5,.9);
+  color: #f5f7f3;
+}
+
+.site-header--grp .desktop-nav > a:not(.button),
+.site-header--grp .nav-action {
+  color: rgba(245,247,243,.68);
+}
+
+.site-header--grp .desktop-nav > a:hover,
+.site-header--grp .nav-action:hover {
+  color: #39ff88;
+}
+
+.site-header--grp .button--quiet {
+  border-color: rgba(57,255,136,.28);
+  background: rgba(57,255,136,.035);
+  color: #39ff88;
+  box-shadow: 0 0 24px rgba(57,255,136,.05);
+}
+
+.site-header--grp .button--quiet:hover {
+  background: rgba(57,255,136,.1);
+}
+
+.site-header--grp .mobile-nav summary {
+  border-color: rgba(57,255,136,.22);
+  color: #f5f7f3;
+}
+
+.site-header--grp .mobile-nav nav {
+  border-color: rgba(57,255,136,.15);
+  background: #080b09;
+  box-shadow: 0 24px 70px rgba(0,0,0,.45);
+}
+
+.site-header--grp .mobile-nav nav a:hover {
+  background: rgba(57,255,136,.08);
+  color: #39ff88;
+}
+
+.site-footer--grp {
+  border-top-color: rgba(57,255,136,.1);
+  background:
+    radial-gradient(circle at 15% 20%, rgba(57,255,136,.045), transparent 18rem),
+    #050805;
+  color: #f5f7f3;
+}
+
+.site-footer--grp p,
+.site-footer--grp .site-footer__links {
+  color: rgba(245,247,243,.54);
+}
+
+.site-footer--grp .site-footer__links a:hover {
+  color: #39ff88;
+}
+
 .desktop-nav {
   display: flex;
   align-items: center;
