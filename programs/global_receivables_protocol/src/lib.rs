@@ -3,6 +3,77 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
+
+#[inline(never)]
+fn settlement_amounts(
+    face_value: u64,
+    funded_amount: u64,
+    investor_return_bps: u16,
+    market_fee_bps: u16,
+    protocol_fee_bps: u16,
+) -> Result<(u64, u64, u64)> {
+    let face = u128::from(face_value);
+    let investor_total = u128::from(funded_amount)
+        .checked_mul(
+            10_000u128
+                .checked_add(u128::from(investor_return_bps))
+                .ok_or(GrpError::ArithmeticOverflow)?,
+        )
+        .ok_or(GrpError::ArithmeticOverflow)?
+        .checked_div(10_000u128)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+    let market_fee = face
+        .checked_mul(u128::from(market_fee_bps))
+        .ok_or(GrpError::ArithmeticOverflow)?
+        .checked_div(10_000u128)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+    let protocol_fee = face
+        .checked_mul(u128::from(protocol_fee_bps))
+        .ok_or(GrpError::ArithmeticOverflow)?
+        .checked_div(10_000u128)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+    let allocated = investor_total
+        .checked_add(market_fee)
+        .ok_or(GrpError::ArithmeticOverflow)?
+        .checked_add(protocol_fee)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+    require!(face >= allocated, GrpError::SettlementEconomicsInvalid);
+    let residual = face
+        .checked_sub(allocated)
+        .ok_or(GrpError::ArithmeticOverflow)?;
+    require!(residual > 0, GrpError::NothingToDistribute);
+
+    Ok((
+        u64::try_from(market_fee).map_err(|_| GrpError::ArithmeticOverflow)?,
+        u64::try_from(protocol_fee).map_err(|_| GrpError::ArithmeticOverflow)?,
+        u64::try_from(residual).map_err(|_| GrpError::ArithmeticOverflow)?,
+    ))
+}
+
+fn validate_token_destination(
+    account: &AccountInfo,
+    token_program: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+) -> Result<()> {
+    require_keys_eq!(*account.owner, *token_program, GrpError::InvalidTokenAccount);
+    let data = account.try_borrow_data()?;
+    require!(data.len() >= 64, GrpError::InvalidTokenAccount);
+    let stored_mint = Pubkey::new_from_array(
+        data[0..32]
+            .try_into()
+            .map_err(|_| error!(GrpError::InvalidTokenAccount))?,
+    );
+    let stored_owner = Pubkey::new_from_array(
+        data[32..64]
+            .try_into()
+            .map_err(|_| error!(GrpError::InvalidTokenAccount))?,
+    );
+    require_keys_eq!(stored_mint, *mint, GrpError::InvalidUsdcMint);
+    require_keys_eq!(stored_owner, *owner, GrpError::InvalidTokenAccount);
+    Ok(())
+}
+
 #[program]
 pub mod global_receivables_protocol {
     use super::*;
@@ -688,45 +759,44 @@ pub mod global_receivables_protocol {
             GrpError::UnauthorizedRequester
         );
         require!(ctx.accounts.pool.repaid_amount > 0, GrpError::NothingToDistribute);
+        require!(ctx.remaining_accounts.len() == 3, GrpError::InvalidSettlementDestinations);
+        require!(
+            ctx.accounts.pool.repaid_amount == ctx.accounts.receivable.settlement_amount_usdc,
+            GrpError::SettlementEconomicsInvalid
+        );
 
-        let face_value = u128::from(ctx.accounts.receivable.settlement_amount_usdc);
-        let funded = u128::from(ctx.accounts.pool.funded_amount);
-        let return_multiplier_bps = 10_000u128
-            .checked_add(u128::from(ctx.accounts.pool.discount_bps))
-            .ok_or(GrpError::ArithmeticOverflow)?;
-        let investor_total = funded
-            .checked_mul(return_multiplier_bps)
-            .ok_or(GrpError::ArithmeticOverflow)?
-            .checked_div(10_000u128)
-            .ok_or(GrpError::ArithmeticOverflow)?;
+        let requester_destination = &ctx.remaining_accounts[0];
+        let market_destination = &ctx.remaining_accounts[1];
+        let protocol_destination = &ctx.remaining_accounts[2];
+        let token_program_key = ctx.accounts.token_program.key();
+        let mint_key = ctx.accounts.usdc_mint.key();
 
-        let market_fee = face_value
-            .checked_mul(u128::from(ctx.accounts.market_config.market_fee_bps))
-            .ok_or(GrpError::ArithmeticOverflow)?
-            .checked_div(10_000u128)
-            .ok_or(GrpError::ArithmeticOverflow)?;
-        let protocol_fee = face_value
-            .checked_mul(u128::from(ctx.accounts.market_config.protocol_fee_bps))
-            .ok_or(GrpError::ArithmeticOverflow)?
-            .checked_div(10_000u128)
-            .ok_or(GrpError::ArithmeticOverflow)?;
+        validate_token_destination(
+            requester_destination,
+            &token_program_key,
+            &mint_key,
+            &ctx.accounts.requester.key(),
+        )?;
+        validate_token_destination(
+            market_destination,
+            &token_program_key,
+            &mint_key,
+            &ctx.accounts.market_config.market_treasury,
+        )?;
+        validate_token_destination(
+            protocol_destination,
+            &token_program_key,
+            &mint_key,
+            &ctx.accounts.config.treasury,
+        )?;
 
-        let repaid = u128::from(ctx.accounts.pool.repaid_amount);
-        let allocated = investor_total
-            .checked_add(market_fee)
-            .ok_or(GrpError::ArithmeticOverflow)?
-            .checked_add(protocol_fee)
-            .ok_or(GrpError::ArithmeticOverflow)?;
-        require!(repaid >= allocated, GrpError::SettlementEconomicsInvalid);
-
-        let residual = repaid
-            .checked_sub(allocated)
-            .ok_or(GrpError::ArithmeticOverflow)?;
-        require!(residual > 0, GrpError::NothingToDistribute);
-
-        let market_fee_u64 = u64::try_from(market_fee).map_err(|_| GrpError::ArithmeticOverflow)?;
-        let protocol_fee_u64 = u64::try_from(protocol_fee).map_err(|_| GrpError::ArithmeticOverflow)?;
-        let residual_u64 = u64::try_from(residual).map_err(|_| GrpError::ArithmeticOverflow)?;
+        let (market_fee, protocol_fee, residual) = settlement_amounts(
+            ctx.accounts.receivable.settlement_amount_usdc,
+            ctx.accounts.pool.funded_amount,
+            ctx.accounts.market_config.investor_return_bps,
+            ctx.accounts.market_config.market_fee_bps,
+            ctx.accounts.market_config.protocol_fee_bps,
+        )?;
 
         let receivable_key = ctx.accounts.receivable.key();
         let bump = [ctx.accounts.payer_authorization.bump];
@@ -737,67 +807,38 @@ pub mod global_receivables_protocol {
         ];
         let signer = &[signer_seeds];
 
-        if market_fee_u64 > 0 {
-            let transfer_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.key(),
-                TransferChecked {
-                    from: ctx.accounts.settlement_vault.to_account_info(),
-                    mint: ctx.accounts.usdc_mint.to_account_info(),
-                    to: ctx.accounts.market_token_account.to_account_info(),
-                    authority: ctx.accounts.payer_authorization.to_account_info(),
-                },
-                signer,
-            );
+        for (destination, amount) in [
+            (market_destination, market_fee),
+            (protocol_destination, protocol_fee),
+            (requester_destination, residual),
+        ] {
+            if amount == 0 {
+                continue;
+            }
             token::transfer_checked(
-                transfer_ctx,
-                market_fee_u64,
+                CpiContext::new_with_signer(
+                    token_program_key,
+                    TransferChecked {
+                        from: ctx.accounts.settlement_vault.to_account_info(),
+                        mint: ctx.accounts.usdc_mint.to_account_info(),
+                        to: destination.clone(),
+                        authority: ctx.accounts.payer_authorization.to_account_info(),
+                    },
+                    signer,
+                ),
+                amount,
                 ctx.accounts.usdc_mint.decimals,
             )?;
         }
 
-        if protocol_fee_u64 > 0 {
-            let transfer_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.key(),
-                TransferChecked {
-                    from: ctx.accounts.settlement_vault.to_account_info(),
-                    mint: ctx.accounts.usdc_mint.to_account_info(),
-                    to: ctx.accounts.protocol_token_account.to_account_info(),
-                    authority: ctx.accounts.payer_authorization.to_account_info(),
-                },
-                signer,
-            );
-            token::transfer_checked(
-                transfer_ctx,
-                protocol_fee_u64,
-                ctx.accounts.usdc_mint.decimals,
-            )?;
-        }
-
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.key(),
-            TransferChecked {
-                from: ctx.accounts.settlement_vault.to_account_info(),
-                mint: ctx.accounts.usdc_mint.to_account_info(),
-                to: ctx.accounts.requester_token_account.to_account_info(),
-                authority: ctx.accounts.payer_authorization.to_account_info(),
-            },
-            signer,
-        );
-        token::transfer_checked(
-            transfer_ctx,
-            residual_u64,
-            ctx.accounts.usdc_mint.decimals,
-        )?;
-
-        let now = Clock::get()?.unix_timestamp;
         let distribution = &mut ctx.accounts.settlement_distribution;
         distribution.receivable = ctx.accounts.receivable.key();
         distribution.pool = ctx.accounts.pool.key();
         distribution.requester = ctx.accounts.requester.key();
-        distribution.market_fee_amount = market_fee_u64;
-        distribution.protocol_fee_amount = protocol_fee_u64;
-        distribution.requester_residual_amount = residual_u64;
-        distribution.created_at = now;
+        distribution.market_fee_amount = market_fee;
+        distribution.protocol_fee_amount = protocol_fee;
+        distribution.requester_residual_amount = residual;
+        distribution.created_at = Clock::get()?.unix_timestamp;
         distribution.bump = ctx.bumps.settlement_distribution;
 
         Ok(())
@@ -1595,27 +1636,6 @@ pub struct ClaimSettlementResidual<'info> {
         address = config.usdc_mint @ GrpError::InvalidUsdcMint
     )]
     pub usdc_mint: Account<'info, Mint>,
-
-    #[account(
-        mut,
-        token::mint = usdc_mint,
-        token::authority = requester
-    )]
-    pub requester_token_account: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        token::mint = usdc_mint,
-        constraint = market_token_account.owner == market_config.market_treasury @ GrpError::InvalidMarketTreasury
-    )]
-    pub market_token_account: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        token::mint = usdc_mint,
-        constraint = protocol_token_account.owner == config.treasury @ GrpError::InvalidTreasury
-    )]
-    pub protocol_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
