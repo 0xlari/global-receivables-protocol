@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::program_option::COption;
-use anchor_spl::token::{self, ApproveChecked, Mint, Token, TokenAccount, TransferChecked};
+use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 declare_id!("CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY");
 
@@ -434,6 +433,22 @@ pub mod global_receivables_protocol {
             amount <= ctx.accounts.payer_authorization.remaining_amount,
             GrpError::AmountExceedsRemaining
         );
+        require!(
+            amount == ctx.accounts.payer_authorization.remaining_amount,
+            GrpError::PartialPaymentNotSupported
+        );
+
+        // The confirmation step no longer grants a token delegate. The payer
+        // chooses the source token account and creates the settlement vault
+        // only when explicitly paying at/after the due date.
+        ctx.accounts.payer_authorization.payer_token_account =
+            ctx.accounts.payer_token_account.key();
+        ctx.accounts.payer_authorization.settlement_vault =
+            ctx.accounts.settlement_vault.key();
+        ctx.accounts.receivable.payer_token_account =
+            ctx.accounts.payer_token_account.key();
+        ctx.accounts.receivable.settlement_vault =
+            ctx.accounts.settlement_vault.key();
 
         let transfer_accounts = TransferChecked {
             from: ctx.accounts.payer_token_account.to_account_info(),
@@ -1133,9 +1148,7 @@ pub struct ManualRepayment<'info> {
             receivable.receivable_id.as_ref()
         ],
         bump = receivable.bump,
-        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization,
-        has_one = payer_token_account @ GrpError::InvalidPayerTokenAccount,
-        has_one = settlement_vault @ GrpError::InvalidSettlementVault
+        has_one = payer_authorization @ GrpError::InvalidPayerAuthorization
     )]
     pub receivable: Account<'info, Receivable>,
 
@@ -1161,15 +1174,14 @@ pub struct ManualRepayment<'info> {
 
     #[account(
         mut,
-        address = payer_authorization.payer_token_account @ GrpError::InvalidPayerTokenAccount,
         token::mint = usdc_mint,
         token::authority = payer
     )]
     pub payer_token_account: Account<'info, TokenAccount>,
 
     #[account(
-        mut,
-        address = payer_authorization.settlement_vault @ GrpError::InvalidSettlementVault,
+        init,
+        payer = payer,
         seeds = [
             b"settlement-vault",
             receivable.key().as_ref()
@@ -1197,6 +1209,7 @@ pub struct ManualRepayment<'info> {
     pub passport: Account<'info, ReceivablePassport>,
 
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -1686,6 +1699,8 @@ pub enum GrpError {
     AlreadySettled,
     #[msg("The payment amount exceeds the remaining obligation.")]
     AmountExceedsRemaining,
+    #[msg("The current MVP requires the payer to settle the remaining obligation in one transaction.")]
+    PartialPaymentNotSupported,
     #[msg("The payer authorization account does not match the receivable.")]
     InvalidPayerAuthorization,
     #[msg("The payer token account does not match the committed account.")]
