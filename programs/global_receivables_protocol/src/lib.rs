@@ -2153,6 +2153,10 @@ pub enum GrpError {
     MarketRulesMismatch,
     #[msg("The Market treasury is invalid.")]
     InvalidMarketTreasury,
+    #[msg("The settlement destinations are invalid.")]
+    InvalidSettlementDestinations,
+    #[msg("A settlement token account is invalid.")]
+    InvalidTokenAccount,
     #[msg("The amount must be greater than zero.")]
     InvalidAmount,
     #[msg("The due date must be in the future.")]
