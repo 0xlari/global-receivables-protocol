@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, CircleDollarSign, HandCoins, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
-import { buildAcceptPartialFundingTransaction, buildDisbursePoolTransaction, buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
+import { buildAcceptPartialFundingTransaction, buildClaimDistributionTransaction, buildDisbursePoolTransaction, buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
 
 type Opportunity = {
   receivableId: string;
@@ -22,6 +22,12 @@ type Opportunity = {
   discountBps: number;
   fundingDeadlineUnix: string;
   status: string;
+  contribution: null | {
+    pda: string;
+    amountUsdcMinor: string;
+    distributedAmountUsdcMinor: string;
+    status: number;
+  };
 };
 
 type FundingState = {
@@ -84,6 +90,90 @@ export function ErhOpportunities() {
       });
     return () => { active = false; };
   }, []);
+
+  async function claim(item: Opportunity) {
+    const current = funding[item.poolPda] ?? {};
+    setFunding((state) => ({
+      ...state,
+      [item.poolPda]: { ...current, releaseWorking: true, message: "" },
+    }));
+
+    try {
+      if (!item.contribution) {
+        throw new Error("Nenhum aporte desta carteira foi encontrado nesta oportunidade.");
+      }
+
+      const provider = (window as Window & { solana?: BrowserSolanaProvider }).solana;
+      if (!provider?.connect || !provider.signAndSendTransaction) {
+        throw new Error("Nenhuma carteira Solana compatível foi encontrada.");
+      }
+
+      const connected = await provider.connect();
+      const investor = new PublicKey(connected.publicKey.toBase58());
+      const usdcMintValue = process.env.NEXT_PUBLIC_GRP_USDC_MINT?.trim();
+      if (!usdcMintValue) throw new Error("O mint USDC do GRP não está configurado.");
+
+      const built = await buildClaimDistributionTransaction({
+        investor,
+        requester: new PublicKey(item.requesterWallet),
+        receivableId: item.receivableId,
+        usdcMint: new PublicKey(usdcMintValue),
+      });
+
+      const sent = await provider.signAndSendTransaction(built.transaction);
+      await built.connection.confirmTransaction(
+        {
+          signature: sent.signature,
+          blockhash: built.blockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+
+      const response = await fetch(
+        "/api/grp/pools/" + item.receivableId + "/claim",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signature: sent.signature }),
+        },
+      );
+      const body = await response.json() as {
+        error?: string;
+        distributedAmountUsdcMinor?: string;
+      };
+      if (!response.ok) {
+        throw new Error(body.error ?? "O resgate confirmou, mas não pôde ser sincronizado.");
+      }
+
+      setFunding((state) => ({
+        ...state,
+        [item.poolPda]: {
+          ...state[item.poolPda],
+          releaseWorking: false,
+          message: body.distributedAmountUsdcMinor
+            ? "Retorno recebido: " + usdc(body.distributedAmountUsdcMinor)
+            : "Retorno recebido em USDC.",
+        },
+      }));
+      await refresh();
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Não foi possível resgatar o retorno.";
+      const friendly =
+        raw === "GRP_SETTLEMENT_VAULT_NOT_FOUND"
+          ? "O pagamento do pagador ainda não foi recebido pelo GRP."
+          : raw === "GRP_CONTRIBUTION_NOT_FOUND_ON_DEVNET"
+            ? "Nenhum aporte desta carteira foi encontrado nesta pool."
+            : /simulation|failed to simulate|revert/i.test(raw)
+              ? "A Solana recusou o resgate. Confirme a carteira investidora e se o pagador já liquidou o recebível."
+              : raw;
+
+      setFunding((state) => ({
+        ...state,
+        [item.poolPda]: { ...current, releaseWorking: false, message: friendly },
+      }));
+    }
+  }
 
   async function fund(item: Opportunity) {
     const current = funding[item.poolPda] ?? {};
@@ -341,6 +431,10 @@ export function ErhOpportunities() {
         const canDisburse =
           item.isRequester &&
           (item.status === "FULL" || item.status === "ACCEPTED_PARTIAL");
+        const canClaim =
+          Boolean(item.contribution) &&
+          (item.status === "SETTLED" || item.status === "CURED") &&
+          BigInt(item.contribution?.distributedAmountUsdcMinor ?? "0") === 0n;
 
         return (
           <article key={item.poolPda}>
@@ -398,6 +492,34 @@ export function ErhOpportunities() {
                   {current.releaseWorking ? "Aguardando carteira…" : "Receber antecipação"}
                 </button>
                 {current.message ? <p role="status">{current.message}</p> : null}
+              </div>
+            ) : null}
+
+            {canClaim ? (
+              <div className="confirmation-form" style={{ marginTop: "1.25rem" }}>
+                <span className="eyebrow"><CircleDollarSign size={16} /> Retorno disponível</span>
+                <h4>Resgate sua participação em USDC.</h4>
+                <p>
+                  O pagador já liquidou o recebível. Sua parte pode ser transferida do
+                  settlement vault para a mesma carteira que fez o aporte.
+                </p>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={current.releaseWorking}
+                  onClick={() => void claim(item)}
+                >
+                  <CircleDollarSign size={17} />
+                  {current.releaseWorking ? "Aguardando carteira…" : "Resgatar retorno"}
+                </button>
+                {current.message ? <p role="status">{current.message}</p> : null}
+              </div>
+            ) : null}
+
+            {item.contribution && BigInt(item.contribution.distributedAmountUsdcMinor) > 0n ? (
+              <div className="confirmation-form__security" style={{ marginTop: "1.25rem" }}>
+                <ShieldCheck size={18} />
+                Retorno já resgatado: {usdc(item.contribution.distributedAmountUsdcMinor)}.
               </div>
             ) : null}
 
