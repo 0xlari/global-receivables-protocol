@@ -29,6 +29,64 @@ pub mod global_receivables_protocol {
         Ok(())
     }
 
+    pub fn initialize_market(
+        ctx: Context<InitializeMarket>,
+        market_id_hash: [u8; 32],
+        operator: Pubkey,
+        market_treasury: Pubkey,
+        status: MarketStatus,
+        advance_bps: u16,
+        minimum_partial_bps: u16,
+        investor_return_bps: u16,
+        market_fee_bps: u16,
+        protocol_fee_bps: u16,
+        rules_version: u16,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
+        require!(operator != Pubkey::default(), GrpError::InvalidOriginator);
+        require!(market_treasury != Pubkey::default(), GrpError::InvalidTreasury);
+        require!(market_id_hash != [0; 32], GrpError::InvalidMarket);
+        require!(advance_bps > 0 && advance_bps <= 10_000, GrpError::InvalidBasisPoints);
+        require!(minimum_partial_bps <= 10_000, GrpError::InvalidBasisPoints);
+        require!(investor_return_bps <= 10_000, GrpError::InvalidBasisPoints);
+        require!(market_fee_bps <= 10_000, GrpError::InvalidBasisPoints);
+        require!(protocol_fee_bps <= 10_000, GrpError::InvalidBasisPoints);
+
+        let investor_share_bps = u128::from(advance_bps)
+            .checked_mul(
+                10_000u128
+                    .checked_add(u128::from(investor_return_bps))
+                    .ok_or(GrpError::ArithmeticOverflow)?
+            )
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_div(10_000u128)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        let allocated_bps = investor_share_bps
+            .checked_add(u128::from(market_fee_bps))
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_add(u128::from(protocol_fee_bps))
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        require!(allocated_bps <= 10_000, GrpError::SettlementEconomicsInvalid);
+
+        let now = Clock::get()?.unix_timestamp;
+        let market = &mut ctx.accounts.market_config;
+        market.market_id_hash = market_id_hash;
+        market.operator = operator;
+        market.market_treasury = market_treasury;
+        market.status = status;
+        market.advance_bps = advance_bps;
+        market.minimum_partial_bps = minimum_partial_bps;
+        market.investor_return_bps = investor_return_bps;
+        market.market_fee_bps = market_fee_bps;
+        market.protocol_fee_bps = protocol_fee_bps;
+        market.rules_version = rules_version;
+        market.created_at = now;
+        market.updated_at = now;
+        market.bump = ctx.bumps.market_config;
+
+        Ok(())
+    }
+
     pub fn initialize_passport(ctx: Context<InitializePassport>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let passport = &mut ctx.accounts.passport;
@@ -196,8 +254,32 @@ pub mod global_receivables_protocol {
             GrpError::UnauthorizedRequester
         );
         require!(target_amount > 0, GrpError::InvalidAmount);
-        require!(minimum_partial_bps <= 10_000, GrpError::InvalidBasisPoints);
-        require!(discount_bps <= 10_000, GrpError::InvalidBasisPoints);
+        require!(
+            ctx.accounts.market_config.status == MarketStatus::Active,
+            GrpError::MarketNotActive
+        );
+        require!(
+            ctx.accounts.receivable.originator == ctx.accounts.market_config.operator,
+            GrpError::InvalidMarketOperator
+        );
+        require!(
+            minimum_partial_bps == ctx.accounts.market_config.minimum_partial_bps,
+            GrpError::MarketRulesMismatch
+        );
+        require!(
+            discount_bps == ctx.accounts.market_config.investor_return_bps,
+            GrpError::MarketRulesMismatch
+        );
+
+        let expected_target_u128 = u128::from(ctx.accounts.receivable.settlement_amount_usdc)
+            .checked_mul(u128::from(ctx.accounts.market_config.advance_bps))
+            .ok_or(GrpError::ArithmeticOverflow)?
+            .checked_div(10_000u128)
+            .ok_or(GrpError::ArithmeticOverflow)?;
+        let expected_target =
+            u64::try_from(expected_target_u128).map_err(|_| GrpError::ArithmeticOverflow)?;
+        require!(expected_target > 0, GrpError::InvalidAmount);
+        require!(target_amount == expected_target, GrpError::MarketRulesMismatch);
 
         let now = Clock::get()?.unix_timestamp;
         require!(funding_deadline > now, GrpError::InvalidFundingDeadline);
@@ -205,6 +287,12 @@ pub mod global_receivables_protocol {
             funding_deadline < ctx.accounts.receivable.due_at,
             GrpError::InvalidFundingDeadline
         );
+
+        let receivable_market = &mut ctx.accounts.receivable_market;
+        receivable_market.receivable = ctx.accounts.receivable.key();
+        receivable_market.market_config = ctx.accounts.market_config.key();
+        receivable_market.created_at = now;
+        receivable_market.bump = ctx.bumps.receivable_market;
 
         let pool = &mut ctx.accounts.pool;
         pool.receivable = ctx.accounts.receivable.key();
@@ -616,12 +704,12 @@ pub mod global_receivables_protocol {
             .ok_or(GrpError::ArithmeticOverflow)?;
 
         let market_fee = face_value
-            .checked_mul(u128::from(ERH_MARKET_FEE_BPS))
+            .checked_mul(u128::from(ctx.accounts.market_config.market_fee_bps))
             .ok_or(GrpError::ArithmeticOverflow)?
             .checked_div(10_000u128)
             .ok_or(GrpError::ArithmeticOverflow)?;
         let protocol_fee = face_value
-            .checked_mul(u128::from(GRP_PROTOCOL_FEE_BPS))
+            .checked_mul(u128::from(ctx.accounts.market_config.protocol_fee_bps))
             .ok_or(GrpError::ArithmeticOverflow)?
             .checked_div(10_000u128)
             .ok_or(GrpError::ArithmeticOverflow)?;
@@ -826,6 +914,31 @@ pub struct InitializeProtocol<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(market_id_hash: [u8; 32])]
+pub struct InitializeMarket<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ GrpError::UnauthorizedAuthority
+    )]
+    pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + MarketConfig::INIT_SPACE,
+        seeds = [b"market-config", market_id_hash.as_ref()],
+        bump
+    )]
+    pub market_config: Account<'info, MarketConfig>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct InitializePassport<'info> {
     #[account(
         init,
@@ -962,6 +1075,21 @@ pub struct CreatePool<'info> {
         bump = config.bump
     )]
     pub config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        seeds = [b"market-config", market_config.market_id_hash.as_ref()],
+        bump = market_config.bump
+    )]
+    pub market_config: Account<'info, MarketConfig>,
+
+    #[account(
+        init,
+        payer = requester,
+        space = 8 + ReceivableMarket::INIT_SPACE,
+        seeds = [b"receivable-market", receivable.key().as_ref()],
+        bump
+    )]
+    pub receivable_market: Account<'info, ReceivableMarket>,
 
     #[account(
         mut,
@@ -1423,6 +1551,20 @@ pub struct ClaimSettlementResidual<'info> {
     pub config: Account<'info, ProtocolConfig>,
 
     #[account(
+        seeds = [b"market-config", market_config.market_id_hash.as_ref()],
+        bump = market_config.bump
+    )]
+    pub market_config: Account<'info, MarketConfig>,
+
+    #[account(
+        seeds = [b"receivable-market", receivable.key().as_ref()],
+        bump = receivable_market.bump,
+        has_one = receivable @ GrpError::InvalidMarket,
+        has_one = market_config @ GrpError::InvalidMarket
+    )]
+    pub receivable_market: Account<'info, ReceivableMarket>,
+
+    #[account(
         seeds = [
             b"receivable",
             receivable.requester.as_ref(),
@@ -1467,7 +1609,7 @@ pub struct ClaimSettlementResidual<'info> {
     #[account(
         mut,
         token::mint = usdc_mint,
-        constraint = market_token_account.owner == receivable.originator @ GrpError::InvalidOriginator
+        constraint = market_token_account.owner == market_config.market_treasury @ GrpError::InvalidMarketTreasury
     )]
     pub market_token_account: Account<'info, TokenAccount>,
 
@@ -1564,6 +1706,33 @@ pub struct ProtocolConfig {
     pub usdc_mint: Pubkey,
     pub protocol_version: u16,
     pub paused: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct MarketConfig {
+    pub market_id_hash: [u8; 32],
+    pub operator: Pubkey,
+    pub market_treasury: Pubkey,
+    pub status: MarketStatus,
+    pub advance_bps: u16,
+    pub minimum_partial_bps: u16,
+    pub investor_return_bps: u16,
+    pub market_fee_bps: u16,
+    pub protocol_fee_bps: u16,
+    pub rules_version: u16,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ReceivableMarket {
+    pub receivable: Pubkey,
+    pub market_config: Pubkey,
+    pub created_at: i64,
     pub bump: u8,
 }
 
@@ -1680,6 +1849,25 @@ pub struct Validation {
     pub rules_version: u16,
     pub created_at: i64,
     pub bump: u8,
+}
+
+#[derive(
+    AnchorSerialize,
+    AnchorDeserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    InitSpace,
+)]
+pub enum MarketStatus {
+    Proposed,
+    Sandbox,
+    Active,
+    Paused,
+    Suspended,
+    Retired,
 }
 
 #[derive(
@@ -1866,14 +2054,27 @@ mod tests {
         let funded = 800_000_000u128;
         let investor_return_bps = 350u128;
         let investor_total = funded * (10_000 + investor_return_bps) / 10_000;
-        let market_fee = face * u128::from(ERH_MARKET_FEE_BPS) / 10_000;
-        let protocol_fee = face * u128::from(GRP_PROTOCOL_FEE_BPS) / 10_000;
+        let market_fee = face * 100u128 / 10_000;
+        let protocol_fee = face * 50u128 / 10_000;
         let residual = face - investor_total - market_fee - protocol_fee;
 
         assert_eq!(investor_total, 828_000_000);
         assert_eq!(market_fee, 10_000_000);
         assert_eq!(protocol_fee, 5_000_000);
         assert_eq!(residual, 157_000_000);
+    }
+
+    #[test]
+    fn market_rules_fit_inside_face_value() {
+        let advance_bps = 8_000u128;
+        let investor_return_bps = 350u128;
+        let market_fee_bps = 100u128;
+        let protocol_fee_bps = 50u128;
+        let investor_share_bps = advance_bps * (10_000 + investor_return_bps) / 10_000;
+        let total = investor_share_bps + market_fee_bps + protocol_fee_bps;
+        assert_eq!(investor_share_bps, 8_280);
+        assert_eq!(total, 8_430);
+        assert!(total <= 10_000);
     }
 
     #[test]
@@ -1925,6 +2126,16 @@ pub enum GrpError {
     InvalidTreasury,
     #[msg("The originator is invalid.")]
     InvalidOriginator,
+    #[msg("The MarketConfig is invalid.")]
+    InvalidMarket,
+    #[msg("The market is not active.")]
+    MarketNotActive,
+    #[msg("The receivable originator does not match the Market operator.")]
+    InvalidMarketOperator,
+    #[msg("The transaction does not match the Market rules.")]
+    MarketRulesMismatch,
+    #[msg("The Market treasury is invalid.")]
+    InvalidMarketTreasury,
     #[msg("The amount must be greater than zero.")]
     InvalidAmount,
     #[msg("The due date must be in the future.")]
