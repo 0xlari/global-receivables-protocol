@@ -121,12 +121,6 @@ export function GrpExperience() {
     <div className={styles.page}>
       <section className={styles.opening}>
         <div className={styles.openingNoise} />
-        <div className={styles.openingAtmosphere} aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </div>
-
         <div className={styles.openingCenter}>
           <p className={styles.openingOverline}><i /> GLOBAL RECEIVABLES PROTOCOL</p>
           <h1>Money moves<br />globally.<br />Receivables<br />should too.</h1>
