@@ -117,6 +117,15 @@ export async function GET(request: Request) {
             return null;
           }
 
+          const [settlementDistributionPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("settlement-distribution"), derived.pool.toBuffer()],
+            derived.program,
+          );
+          const settlementDistributionInfo = await connection.getAccountInfo(
+            settlementDistributionPda,
+            "confirmed",
+          );
+
           let contribution = null as null | {
             pda: string;
             amountUsdcMinor: string;
@@ -164,6 +173,7 @@ export async function GET(request: Request) {
             fundingDeadlineUnix: readI64(account.data, 172),
             status: poolStatus[account.data[188] ?? 0] ?? "UNKNOWN",
             contribution,
+            residualClaimed: Boolean(settlementDistributionInfo),
           };
         }),
       );
