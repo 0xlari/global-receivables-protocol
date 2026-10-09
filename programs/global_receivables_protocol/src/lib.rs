@@ -1588,13 +1588,13 @@ pub struct ClaimSettlementResidual<'info> {
         seeds = [b"config"],
         bump = config.bump
     )]
-    pub config: Account<'info, ProtocolConfig>,
+    pub config: Box<Account<'info, ProtocolConfig>>,
 
     #[account(
         seeds = [b"market-config", market_config.market_id_hash.as_ref()],
         bump = market_config.bump
     )]
-    pub market_config: Account<'info, MarketConfig>,
+    pub market_config: Box<Account<'info, MarketConfig>>,
 
     #[account(
         seeds = [b"receivable-market", receivable.key().as_ref()],
@@ -1602,7 +1602,7 @@ pub struct ClaimSettlementResidual<'info> {
         has_one = receivable @ GrpError::InvalidMarket,
         has_one = market_config @ GrpError::InvalidMarket
     )]
-    pub receivable_market: Account<'info, ReceivableMarket>,
+    pub receivable_market: Box<Account<'info, ReceivableMarket>>,
 
     #[account(
         seeds = [
@@ -1614,7 +1614,7 @@ pub struct ClaimSettlementResidual<'info> {
         has_one = payer_authorization @ GrpError::InvalidPayerAuthorization,
         has_one = settlement_vault @ GrpError::InvalidSettlementVault
     )]
-    pub receivable: Account<'info, Receivable>,
+    pub receivable: Box<Account<'info, Receivable>>,
 
     #[account(
         seeds = [b"pool", receivable.key().as_ref()],
@@ -1622,14 +1622,14 @@ pub struct ClaimSettlementResidual<'info> {
         has_one = receivable @ GrpError::InvalidPoolReceivable,
         constraint = pool.usdc_mint == usdc_mint.key() @ GrpError::InvalidUsdcMint
     )]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
 
     #[account(
         seeds = [b"payer-authorization", receivable.key().as_ref()],
         bump = payer_authorization.bump,
         has_one = settlement_vault @ GrpError::InvalidSettlementVault
     )]
-    pub payer_authorization: Account<'info, PayerAuthorization>,
+    pub payer_authorization: Box<Account<'info, PayerAuthorization>>,
 
     #[account(mut)]
     pub requester: Signer<'info>,
@@ -1637,7 +1637,7 @@ pub struct ClaimSettlementResidual<'info> {
     #[account(
         address = config.usdc_mint @ GrpError::InvalidUsdcMint
     )]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
@@ -1645,7 +1645,7 @@ pub struct ClaimSettlementResidual<'info> {
         token::mint = usdc_mint,
         token::authority = payer_authorization
     )]
-    pub settlement_vault: Account<'info, TokenAccount>,
+    pub settlement_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init,
@@ -1654,7 +1654,7 @@ pub struct ClaimSettlementResidual<'info> {
         seeds = [b"settlement-distribution", pool.key().as_ref()],
         bump
     )]
-    pub settlement_distribution: Account<'info, SettlementDistribution>,
+    pub settlement_distribution: Box<Account<'info, SettlementDistribution>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
