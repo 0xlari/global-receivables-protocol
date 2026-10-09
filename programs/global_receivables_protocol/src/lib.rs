@@ -749,7 +749,7 @@ pub mod global_receivables_protocol {
 
 
     pub fn claim_settlement_residual<'info>(
-        ctx: Context<'_, '_, '_, 'info, ClaimSettlementResidual<'info>>,
+        ctx: Context<'info, ClaimSettlementResidual<'info>>,
     ) -> Result<()> {
         require!(!ctx.accounts.config.paused, GrpError::ProtocolPaused);
         require!(
