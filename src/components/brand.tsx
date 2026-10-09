@@ -4,30 +4,28 @@ function GrpMark() {
   return (
     <svg
       className="brand__grp-symbol"
-      viewBox="0 0 100 34"
+      viewBox="0 0 104 34"
       role="img"
       aria-label="GRP"
     >
       <defs>
-        <linearGradient id="grp-brand-gradient" x1="0" x2="1">
-          <stop offset="0%" stopColor="#f5f7f3" />
-          <stop offset="55%" stopColor="#f5f7f3" />
+        <linearGradient id="grp-wordmark-gradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="72%" stopColor="#ffffff" />
           <stop offset="100%" stopColor="#39ff88" />
         </linearGradient>
       </defs>
       <g
         fill="none"
-        stroke="url(#grp-brand-gradient)"
-        strokeWidth="5.2"
+        stroke="url(#grp-wordmark-gradient)"
+        strokeWidth="5"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M29 7H11C6 7 4 10 4 17s2 10 7 10h18v-9H20" />
-        <path d="M38 27V7h16c5 0 7 2 7 6s-2 6-7 6H38m13 0 11 8" />
-        <path d="M71 27V7h16c5 0 7 2 7 6s-2 6-7 6H71" />
+        <path d="M31 7H12C6 7 4 10.5 4 17s2 10 8 10h19v-9H21" />
+        <path d="M40 27V7h16c5 0 7 2.2 7 6.2S61 19.4 56 19.4H40m12 0L64 27" />
+        <path d="M73 27V7h16c5 0 7 2.2 7 6.2s-2 6.2-7 6.2H73" />
       </g>
-      <circle cx="29" cy="18" r="2.4" fill="#39ff88" />
-      <circle cx="94" cy="13" r="2.4" fill="#39ff88" />
     </svg>
   );
 }
@@ -54,9 +52,7 @@ export function Brand({ variant = "grp" }: { variant?: "grp" | "erh" }) {
       href="/"
       aria-label="Global Receivables Protocol — home"
     >
-      <span className="brand__mark brand__mark--grp" aria-hidden="true">
-        <GrpMark />
-      </span>
+      <GrpMark />
     </Link>
   );
 }
