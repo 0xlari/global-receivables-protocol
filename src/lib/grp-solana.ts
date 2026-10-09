@@ -8,7 +8,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 
 const DEFAULT_GRP_PROGRAM_ID = "CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY";
 
@@ -334,6 +334,127 @@ export async function buildFundPoolTransaction(input: {
     contribution,
     investorTokenAccount,
     investorUsdcBalance,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
+
+export async function buildAcceptPartialFundingTransaction(input: {
+  requester: PublicKey;
+  receivableId: string;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+
+  const [poolInfo, requesterBalance] = await Promise.all([
+    connection.getAccountInfo(pool, "confirmed"),
+    connection.getBalance(input.requester, "confirmed"),
+  ]);
+  if (!poolInfo) throw new Error("GRP_POOL_NOT_FOUND_ON_DEVNET");
+  if (requesterBalance === 0) throw new Error("REQUESTER_NEEDS_DEVNET_SOL");
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+      { pubkey: pool, isSigner: false, isWritable: true },
+      { pubkey: input.requester, isSigner: true, isWritable: true },
+    ],
+    data: Buffer.from(await anchorDiscriminator("accept_partial_funding")),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.requester,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return { connection, transaction, pool, blockhash, lastValidBlockHeight };
+}
+
+export async function buildDisbursePoolTransaction(input: {
+  requester: PublicKey;
+  receivableId: string;
+  usdcMint: PublicKey;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [poolVault] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool-vault"), pool.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const requesterTokenAccount = await getAssociatedTokenAddress(
+    input.usdcMint,
+    input.requester,
+  );
+
+  const [poolInfo, requesterTokenInfo, requesterSolBalance] = await Promise.all([
+    connection.getAccountInfo(pool, "confirmed"),
+    connection.getAccountInfo(requesterTokenAccount, "confirmed"),
+    connection.getBalance(input.requester, "confirmed"),
+  ]);
+  if (!poolInfo) throw new Error("GRP_POOL_NOT_FOUND_ON_DEVNET");
+  if (requesterSolBalance === 0) throw new Error("REQUESTER_NEEDS_DEVNET_SOL");
+
+  const transaction = new Transaction();
+
+  if (!requesterTokenInfo) {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        input.requester,
+        requesterTokenAccount,
+        input.requester,
+        input.usdcMint,
+      ),
+    );
+  }
+
+  transaction.add(
+    new TransactionInstruction({
+      programId: GRP_PROGRAM_ID,
+      keys: [
+        { pubkey: pdas.config, isSigner: false, isWritable: false },
+        { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+        { pubkey: pool, isSigner: false, isWritable: true },
+        { pubkey: input.requester, isSigner: true, isWritable: true },
+        { pubkey: input.usdcMint, isSigner: false, isWritable: false },
+        { pubkey: requesterTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: poolVault, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      ],
+      data: Buffer.from(await anchorDiscriminator("disburse_pool")),
+    }),
+  );
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  transaction.feePayer = input.requester;
+  transaction.recentBlockhash = blockhash;
+
+  return {
+    connection,
+    transaction,
+    pool,
+    poolVault,
+    requesterTokenAccount,
     blockhash,
     lastValidBlockHeight,
   };
