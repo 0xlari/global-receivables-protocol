@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowLeft, Copy, FileCheck2, Link2, RefreshCw, CircleDol
 import { PublicKey } from "@solana/web3.js";
 
 import { buildCreatePoolTransaction, buildProcessDelinquencyTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
+import { ERH_MARKET_RULES, calculateErhTargetUsd } from "@/config/erh-market-rules";
 
 type Receivable = {
   id: string;
@@ -54,9 +55,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
   const [poolWorking, setPoolWorking] = useState(false);
   const [delinquencyWorking, setDelinquencyWorking] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
-  const [targetUsd, setTargetUsd] = useState("");
-  const [minimumPartialPercent, setMinimumPartialPercent] = useState("50");
-  const [discountPercent, setDiscountPercent] = useState("10");
+
   const [fundingDeadline, setFundingDeadline] = useState("");
 
   async function load() {
@@ -75,9 +74,6 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
       setItem(body.receivable);
       const serverNowMs = body.serverNowMs ?? 0;
       setCurrentTimeMs(serverNowMs);
-      if (!targetUsd) {
-        setTargetUsd(((Number(body.receivable.nominalUsdCents) / 100) * 0.8).toFixed(2));
-      }
       if (!fundingDeadline) {
         const due = new Date(body.receivable.dueAt);
         const deadline = new Date(Math.max(serverNowMs + 86_400_000, due.getTime() - 86_400_000));
@@ -122,9 +118,6 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         setItem(body.receivable);
         const serverNowMs = body.serverNowMs ?? 0;
         setCurrentTimeMs(serverNowMs);
-        if (!targetUsd) {
-          setTargetUsd(((Number(body.receivable.nominalUsdCents) / 100) * 0.8).toFixed(2));
-        }
         if (!fundingDeadline) {
           const due = new Date(body.receivable.dueAt);
           const deadline = new Date(Math.max(serverNowMs + 86_400_000, due.getTime() - 86_400_000));
@@ -258,14 +251,10 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
       const usdcMintValue = process.env.NEXT_PUBLIC_GRP_USDC_MINT?.trim();
       if (!usdcMintValue) throw new Error("O mint USDC do GRP não está configurado.");
 
-      const targetCents = BigInt(Math.round(Number(targetUsd.replace(",", ".")) * 100));
-      if (targetCents <= 0n) throw new Error("Informe um valor de antecipação válido.");
-      if (targetCents > BigInt(item.nominalUsdCents)) {
-        throw new Error("O valor da oportunidade não pode superar o recebível.");
-      }
-
-      const minBps = Math.round(Number(minimumPartialPercent) * 100);
-      const discountBps = Math.round(Number(discountPercent) * 100);
+      const targetCents =
+        (BigInt(item.nominalUsdCents) * BigInt(ERH_MARKET_RULES.advanceBps)) / 10_000n;
+      const minBps = ERH_MARKET_RULES.minimumPartialBps;
+      const discountBps = ERH_MARKET_RULES.discountBps;
       const deadlineUnix = BigInt(
         Math.floor(new Date(fundingDeadline + "T23:59:59").getTime() / 1000),
       );
@@ -421,26 +410,33 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
             <span className="eyebrow"><CircleDollarSign size={16} /> Criar oportunidade</span>
             <h2>Abra este recebível para financiamento.</h2>
             <p>
-              Defina quanto deseja antecipar e as condições iniciais da pool. A criação
-              será assinada pela sua carteira e registrada na Solana Devnet.
+              As condições financeiras são definidas pelo Elas Recebem Hoje para manter
+              uma regra única de mercado. Você escolhe apenas o prazo para captação.
             </p>
 
-            <div className="confirmation-form__grid">
-              <label>
-                Valor da oportunidade (USD)
-                <input value={targetUsd} onChange={(event) => setTargetUsd(event.target.value)} inputMode="decimal" />
-              </label>
+            <div className="profile-items">
+              <div>
+                <strong>Valor da oportunidade</strong>
+                <span>{formatUsd(String(Number(calculateErhTargetUsd(item.nominalUsdCents)) * 100))}</span>
+              </div>
+              <div>
+                <strong>Percentual antecipado</strong>
+                <span>{(ERH_MARKET_RULES.advanceBps / 100).toFixed(0)}%</span>
+              </div>
+              <div>
+                <strong>Funding mínimo</strong>
+                <span>{(ERH_MARKET_RULES.minimumPartialBps / 100).toFixed(0)}%</span>
+              </div>
+              <div>
+                <strong>Desconto da oportunidade</strong>
+                <span>{(ERH_MARKET_RULES.discountBps / 100).toFixed(1)}%</span>
+              </div>
+            </div>
+
+            <div className="confirmation-form__grid" style={{ marginTop: "1rem" }}>
               <label>
                 Prazo para funding
                 <input type="date" value={fundingDeadline} onChange={(event) => setFundingDeadline(event.target.value)} />
-              </label>
-              <label>
-                Funding mínimo (%)
-                <input type="number" min="0" max="100" value={minimumPartialPercent} onChange={(event) => setMinimumPartialPercent(event.target.value)} />
-              </label>
-              <label>
-                Desconto (%)
-                <input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} />
               </label>
             </div>
 
