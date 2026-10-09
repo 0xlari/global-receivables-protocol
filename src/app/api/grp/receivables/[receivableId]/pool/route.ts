@@ -87,7 +87,7 @@ export async function POST(
       if (
         targetAmount !== expectedTargetAmount ||
         body.minimumPartialBps !== ERH_MARKET_RULES.minimumPartialBps ||
-        body.discountBps !== ERH_MARKET_RULES.discountBps
+        body.discountBps !== ERH_MARKET_RULES.investorReturnBps
       ) {
         throw new Error("ERH_MARKET_RULES_MISMATCH");
       }
