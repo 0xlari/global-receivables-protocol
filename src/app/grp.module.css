@@ -3,15 +3,15 @@
   --black-2: #090b0a;
   --ink: #f3f5ef;
   --muted: #8f988f;
-  --signal: #8cff98;
-  --signal-soft: rgba(140,255,152,.12);
-  --violet: #8c67ff;
-  --line: rgba(140,255,152,.14);
+  --signal: #39ff88;
+  --signal-soft: rgba(57,255,136,.12);
+  --violet: #39ff88;
+  --line: rgba(57,255,136,.14);
   min-height: 100vh;
   overflow: clip;
   background: var(--black);
   color: var(--ink);
-  font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 }
 
 .page * { box-sizing: border-box; }
@@ -24,8 +24,8 @@
   overflow: hidden;
   padding: 7rem 2rem 4rem;
   background:
-    radial-gradient(circle at 74% 30%, rgba(140,255,152,.09), transparent 20rem),
-    radial-gradient(circle at 24% 65%, rgba(140,103,255,.08), transparent 18rem),
+    radial-gradient(circle at 74% 30%, rgba(57,255,136,.09), transparent 20rem),
+    radial-gradient(circle at 24% 65%, rgba(57,255,136,.035), transparent 18rem),
     #050706;
 }
 
@@ -34,8 +34,8 @@
   inset: 0;
   opacity: .32;
   background-image:
-    linear-gradient(rgba(140,255,152,.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(140,255,152,.05) 1px, transparent 1px);
+    linear-gradient(rgba(57,255,136,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57,255,136,.05) 1px, transparent 1px);
   background-size: 38px 38px;
   mask-image: radial-gradient(circle at center, #000 18%, transparent 82%);
 }
@@ -66,7 +66,7 @@
   height: .5rem;
   border-radius: 50%;
   background: var(--signal);
-  box-shadow: 0 0 18px rgba(140,255,152,.8);
+  box-shadow: 0 0 18px rgba(57,255,136,.8);
 }
 
 .openingCenter {
@@ -101,7 +101,19 @@
 .opening h1 {
   margin-top: 1rem;
   font-size: clamp(4rem, 9vw, 8.8rem);
-  font-weight: 720;
+  font-weight: 760;
+  letter-spacing: -.065em;
+  text-wrap: balance;
+}
+
+.opening h1::selection,
+.scene h2::selection,
+.statement h2::selection,
+.passportCopy h2::selection,
+.proof h2::selection,
+.close h2::selection {
+  background: var(--signal);
+  color: #050805;
 }
 
 .openingCenter > p:not(.openingOverline) {
@@ -136,7 +148,7 @@
 .signalButton {
   background: var(--signal);
   color: #061008;
-  box-shadow: 0 0 36px rgba(140,255,152,.16);
+  box-shadow: 0 0 36px rgba(57,255,136,.16);
 }
 
 .ghostButton {
@@ -211,7 +223,7 @@
   position: absolute;
   inset: 14%;
   border-radius: 50%;
-  background: rgba(140,255,152,.1);
+  background: rgba(57,255,136,.1);
   filter: blur(60px);
 }
 
@@ -220,7 +232,7 @@
   z-index: 2;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 0 26px rgba(140,255,152,.16));
+  filter: drop-shadow(0 0 26px rgba(57,255,136,.16));
 }
 
 .globeGrid {
@@ -229,16 +241,16 @@
 }
 
 .land {
-  fill: rgba(140,255,152,.77);
+  fill: rgba(57,255,136,.77);
   stroke: rgba(203,255,210,.86);
   stroke-width: 1.1;
 }
 
 .node {
   fill: #eaffed;
-  stroke: #8cff98;
+  stroke: #39ff88;
   stroke-width: 5;
-  filter: drop-shadow(0 0 8px rgba(140,255,152,.95));
+  filter: drop-shadow(0 0 8px rgba(57,255,136,.95));
 }
 
 .route,
@@ -252,11 +264,11 @@
 }
 
 .route { stroke: url(#grp-route-gradient); }
-.routeSoft { stroke: #8c67ff; opacity: .74; }
+.routeSoft { stroke: #39ff88; opacity: .74; }
 .routeReverse { stroke: #f4fff6; stroke-width: 4; }
 .passportRing {
   fill: none;
-  stroke: #8c67ff;
+  stroke: #39ff88;
   stroke-width: 2;
   opacity: .9;
   animation: pulseRing 1.8s ease-out infinite;
@@ -275,7 +287,7 @@
   bottom: 13%;
   display: grid;
   min-width: 210px;
-  border: 1px solid rgba(140,255,152,.22);
+  border: 1px solid rgba(57,255,136,.22);
   background: rgba(3,8,5,.78);
   backdrop-filter: blur(12px);
   padding: .8rem .9rem;
@@ -338,7 +350,7 @@
 
 .sceneCopy {
   width: min(430px, 88vw);
-  border-left: 1px solid rgba(140,255,152,.32);
+  border-left: 1px solid rgba(57,255,136,.32);
   background: linear-gradient(90deg, rgba(2,4,3,.84), rgba(2,4,3,.42), transparent);
   padding: 1.2rem 1.4rem;
   backdrop-filter: blur(5px);
@@ -380,8 +392,8 @@
   position: relative;
   padding: 9rem 7vw;
   background:
-    linear-gradient(rgba(140,255,152,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(140,255,152,.03) 1px, transparent 1px),
+    linear-gradient(rgba(57,255,136,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57,255,136,.03) 1px, transparent 1px),
     #080a09;
   background-size: 44px 44px;
 }
@@ -431,13 +443,13 @@
 .passportOrbit::before,
 .passportOrbit::after {
   position: absolute;
-  border: 1px solid rgba(140,255,152,.16);
+  border: 1px solid rgba(57,255,136,.16);
   border-radius: 50%;
   content: "";
 }
 
 .passportOrbit::before { width: 420px; height: 420px; }
-.passportOrbit::after { width: 540px; height: 540px; border-color: rgba(140,103,255,.15); }
+.passportOrbit::after { width: 540px; height: 540px; border-color: rgba(57,255,136,.15); }
 
 .passportCore {
   position: relative;
@@ -447,10 +459,10 @@
   aspect-ratio: 1;
   place-content: center;
   border-radius: 50%;
-  border: 1px solid rgba(140,255,152,.28);
+  border: 1px solid rgba(57,255,136,.28);
   background: radial-gradient(circle at 35% 25%, #17331d, #071009 72%);
   text-align: center;
-  box-shadow: 0 0 60px rgba(140,255,152,.08);
+  box-shadow: 0 0 60px rgba(57,255,136,.08);
 }
 
 .passportCore span,
@@ -474,7 +486,7 @@
   z-index: 3;
   display: grid;
   min-width: 140px;
-  border: 1px solid rgba(140,255,152,.16);
+  border: 1px solid rgba(57,255,136,.16);
   background: #0b0e0c;
   padding: .7rem .8rem;
 }
@@ -497,12 +509,12 @@
   align-items: center;
   min-height: 78svh;
   padding: 7rem 7vw;
-  border-top: 1px solid rgba(140,255,152,.08);
-  border-bottom: 1px solid rgba(140,255,152,.08);
+  border-top: 1px solid rgba(57,255,136,.08);
+  border-bottom: 1px solid rgba(57,255,136,.08);
   background:
-    radial-gradient(circle at 78% 48%, rgba(140,103,255,.08), transparent 20rem),
-    linear-gradient(rgba(140,255,152,.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(140,255,152,.025) 1px, transparent 1px),
+    radial-gradient(circle at 78% 48%, rgba(57,255,136,.035), transparent 20rem),
+    linear-gradient(rgba(57,255,136,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57,255,136,.025) 1px, transparent 1px),
     #050706;
   background-size: auto, 44px 44px, 44px 44px, auto;
 }
@@ -512,7 +524,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  border-right: 1px solid rgba(140,255,152,.16);
+  border-right: 1px solid rgba(57,255,136,.16);
   padding-right: 1.3rem;
 }
 
@@ -567,9 +579,9 @@
 }
 
 .verticalNode {
-  border: 1px solid rgba(140,255,152,.15);
+  border: 1px solid rgba(57,255,136,.15);
   background:
-    radial-gradient(circle at 84% 10%, rgba(140,255,152,.06), transparent 12rem),
+    radial-gradient(circle at 84% 10%, rgba(57,255,136,.06), transparent 12rem),
     #0a0d0b;
   box-shadow: 0 30px 90px rgba(0,0,0,.32);
   padding: 1.2rem;
@@ -580,7 +592,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(140,255,152,.1);
+  border-bottom: 1px solid rgba(57,255,136,.1);
 }
 
 .verticalNodeBody {
@@ -596,7 +608,7 @@
   width: 4.5rem;
   height: 4.5rem;
   place-items: center;
-  border: 1px solid rgba(140,255,152,.2);
+  border: 1px solid rgba(57,255,136,.2);
   background: #071009;
   color: var(--signal);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -622,7 +634,7 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: .55rem 1rem;
-  border-top: 1px solid rgba(140,255,152,.1);
+  border-top: 1px solid rgba(57,255,136,.1);
   padding-top: 1rem;
 }
 
@@ -659,7 +671,7 @@
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  border-top: 1px solid rgba(140,255,152,.11);
+  border-top: 1px solid rgba(57,255,136,.11);
   padding: .9rem 0;
 }
 .proof dt { color: #6f786f; }
@@ -673,7 +685,7 @@
   text-align: center;
   padding: 7rem 2rem;
   background:
-    radial-gradient(circle at center, rgba(140,255,152,.08), transparent 24rem),
+    radial-gradient(circle at center, rgba(57,255,136,.08), transparent 24rem),
     #020403;
 }
 
@@ -709,7 +721,7 @@
   }
   .scene { padding-inline: 1.2rem; }
   .verticalScene { grid-template-columns: 1fr; }
-  .verticalSignal { min-height: 120px; border-right: 0; border-bottom: 1px solid rgba(140,255,152,.16); padding: 0 0 1rem; }
+  .verticalSignal { min-height: 120px; border-right: 0; border-bottom: 1px solid rgba(57,255,136,.16); padding: 0 0 1rem; }
   .verticalSignal strong { font-size: 4rem; }
   .globeWrap { width: min(92vw, 680px); }
   .worldHeader { display: none; }
