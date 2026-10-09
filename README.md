@@ -1,143 +1,226 @@
 # Global Receivables Protocol (GRP)
 
-**GRP** is an open infrastructure for representing, validating, financing and settling global receivables on Solana.
+**Global Receivables Protocol (GRP)** is open infrastructure for creating, validating, financing, settling and building portable reputation around real-world receivables on Solana.
 
-The repository is being migrated from the Hack4Freedom project **Elas Recebem Hoje**, originally built around Bitcoin, Lightning and Nostr. The business domain and product flows are being preserved while the public financial state layer is replaced by Solana.
+Live demo: **https://global-receivables-protocol.vercel.app/**  
+Network: **Solana Devnet**  
+Program ID: `CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY`
 
-> **Migration status:** Phase 1 — legacy boundary and architecture cleanup. Bitcoin/Lightning/Nostr modules remain in the repository only to keep the previous implementation recoverable while their responsibilities are replaced.
+## Why GRP
 
-## Product structure
+Cross-border workers and small businesses often wait weeks or months to receive legitimate payments. Traditional receivables financing is expensive, fragmented or inaccessible to smaller participants.
 
-- **Global Receivables Protocol (GRP):** protocol and on-chain infrastructure.
-- **Receivable Passport:** portable performance/reputation history derived from settled receivables.
-- **Elas Recebem Hoje:** first vertical/application built on top of GRP.
+GRP turns a confirmed future payment into a programmable financing primitive with:
 
-## Core problem
+- public financial state on Solana;
+- private operational data off-chain;
+- USDC financing and settlement;
+- Market-specific rules enforced on-chain;
+- a portable **Receivable Passport** that persists across Markets.
 
-Professionals and small businesses that work across borders often wait weeks or months to receive invoices or contractual payments. Traditional receivables financing is still difficult to access for smaller participants, especially in cross-border flows.
+## Product model
 
-GRP aims to turn a confirmed future payment into a verifiable, programmable financing primitive.
+GRP separates infrastructure from distribution.
 
-Target flow:
+### GRP Protocol
 
-1. a requester creates a receivable;
-2. the payer confirms the obligation;
-3. an originator validates the receivable;
-4. a financing pool is created;
-5. investors fund the pool in USDC;
-6. the receivable is settled;
-7. the settlement updates the requester's Receivable Passport.
+The protocol owns the common financial primitives:
 
-## Target architecture
-
-### Solana
-
-Solana becomes the canonical public financial state layer for:
-
-- receivable identifiers and lifecycle;
-- payer confirmation commitments;
-- validation decisions;
+- receivable lifecycle;
+- payer commitment;
+- validation state;
+- MarketConfig;
 - financing pools;
-- contributions;
+- investor contributions;
+- disbursement;
 - settlement;
-- reputation facts used by Receivable Passport.
+- default / cure state;
+- fee distribution;
+- Receivable Passport.
 
-### Off-chain data
+### Markets
 
-PostgreSQL/Supabase remains responsible for private and operational data such as:
+Markets adapt GRP to a geography, audience and operating model.
+
+Each Market declares:
+
+- operator;
+- status;
+- treasury;
+- advance rate;
+- minimum funding threshold;
+- investor return;
+- Market fee;
+- GRP protocol fee;
+- rules version.
+
+Markets move through:
+
+`PROPOSED → SANDBOX → ACTIVE`
+
+and may later become `PAUSED`, `SUSPENDED` or `RETIRED` without deleting historical receivables or Passport state.
+
+### Elas Recebem Hoje
+
+**Elas Recebem Hoje (ERH)** is the first active Market built on GRP.
+
+Current Devnet MarketConfig:
+
+| Rule | Value |
+|---|---:|
+| Advance | 80% |
+| Minimum partial funding | 50% |
+| Investor return | 3.5% |
+| ERH Market fee | 1.0% |
+| GRP protocol fee | 0.50% |
+| Settlement asset | USDC |
+| Status | ACTIVE |
+
+Market treasury and GRP treasury are separate.
+
+## End-to-end flow
+
+1. Requester creates a receivable.
+2. Payer confirms the obligation with a Solana signature.
+3. Market operator validates it.
+4. GRP creates a financing pool under the MarketConfig.
+5. Investors fund the pool in USDC.
+6. The requester receives the advance.
+7. The payer later signs a fresh transaction and settles the full receivable in USDC.
+8. Investors claim principal + Market-defined return.
+9. ERH receives its Market fee.
+10. GRP receives its protocol fee.
+11. The residual returns to the requester.
+12. Receivable Passport updates the financial history.
+
+The payer does **not** grant an open-ended token delegate. Settlement requires a fresh payer signature.
+
+## Example economics
+
+For a **US$1,000** receivable:
+
+```text
+Face value                    US$ 1,000
+Advance to requester           US$   800
+
+After payer settlement:
+Investors receive              US$   828
+  principal                    US$   800
+  return (3.5%)                US$    28
+
+ERH Market fee (1%)            US$    10
+GRP fee (0.50%)                US$     5
+Requester residual             US$   157
+```
+
+## Receivable Passport
+
+The Passport is a protocol-level reputation primitive linked to the requester wallet.
+
+It tracks:
+
+- receivables created;
+- receivables settled;
+- on-time settlements;
+- late settlements;
+- defaults;
+- cured defaults;
+- total settled USDC volume;
+- last on-chain update.
+
+The Market may change; the Passport remains portable.
+
+Private evidence, PII, KYC/KYB and sensitive documents remain off-chain.
+
+## Default model
+
+Current MVP rules:
+
+- **D+1:** overdue;
+- **D+5:** default;
+- repayment after default remains possible;
+- cured defaults remain visible in the Passport.
+
+A future **Stability Reserve** is part of the economic roadmap. It is not an automatic guarantee or insurance product. Any support would be partial, eligibility-based and subject to risk policy.
+
+## Architecture
+
+```text
+User / Payer / Investor
+        │
+        ▼
+Next.js application
+        │
+        ├──────────────► Neon / PostgreSQL
+        │                private operational data
+        │                sessions
+        │                evidence references
+        │                Market operations
+        │
+        ▼
+Solana Program (Anchor)
+        │
+        ├─ ProtocolConfig
+        ├─ MarketConfig
+        ├─ Receivable
+        ├─ ReceivableMarket
+        ├─ PayerAuthorization (payer commitment)
+        ├─ Validation
+        ├─ Pool
+        ├─ Contribution
+        ├─ SettlementDistribution
+        └─ ReceivablePassport
+```
+
+### On-chain
+
+- canonical financial state;
+- market rules and economics;
+- receivable status;
+- pool state;
+- contributions;
+- settlement state;
+- fee split;
+- reputation facts.
+
+### Off-chain
 
 - documents;
 - PII;
-- KYC references;
-- private payer data;
+- KYC/KYB;
+- contracts;
+- payer operational information;
 - underwriting notes;
 - communications;
-- operational audit data.
+- compliance evidence.
 
-Sensitive documents must not be published on-chain.
+## Tech stack
 
-### Settlement asset
-
-The hackathon MVP targets **USDC on Solana** as the primary financing and settlement asset. SOL is used for network fees and program interaction, not as the receivable's unit of account.
-
-## Preserved domain
-
-The migration intentionally preserves the strongest parts of the Hack4Freedom implementation:
-
-- receivables lifecycle;
-- payer confirmation;
-- validation / underwriting workflow;
-- financing pools;
-- partial funding rules;
-- financial calculations;
-- ledger invariants;
-- administration flows;
-- private-data separation;
-- relevant tests.
-
-## Legacy boundary
-
-The following subsystems belong to the previous Bitcoin architecture and receive no new product development:
-
-- Lightning Network settlement;
-- Breez / Liquid;
-- Nostr Wallet Connect (NWC);
-- DLC settlement design;
-- Nostr as canonical public state;
-- relay quorum and Nostr projections;
-- Bitcoin/sats-specific flows.
-
-They remain temporarily in the codebase only until their active responsibilities are replaced safely.
-
-See:
-
-```text
-docs/GRP_MIGRATION.md
-docs/legacy-hack4freedom/
-```
-
-## Current application
-
-The existing Next.js application is intentionally kept operational during the migration. Current product routes include:
-
-```text
-/painel
-/recebivel
-/confirmar
-/administracao
-/pools
-/pools/[poolId]
-```
-
-Some routes still depend on legacy infrastructure during Phase 1. They will be migrated incrementally rather than deleted prematurely.
-
-## Current stack
-
-Preserved application stack:
-
+- Solana
+- Anchor 1.2
+- Rust
+- USDC / SPL Token
 - Next.js 16
 - React 19
 - TypeScript
-- PostgreSQL
+- PostgreSQL / Neon
 - Drizzle ORM
+- Vercel
 - Vitest
-- Playwright
-- PGlite
-- Zod
-- Tailwind CSS
 
-Target additions:
-
-- Solana
-- Anchor
-- Solana wallet integration
-- SPL Token / USDC
-
-Legacy dependencies remain temporarily installed until their imports are retired.
+Legacy Bitcoin / Lightning / Nostr code remains in the repository only as preserved history from the original Hack4Freedom project and is not part of the active GRP product flow.
 
 ## Development
 
-Install dependencies:
+Requirements:
+
+- Node.js 24
+- pnpm 10
+- Rust
+- Solana CLI
+- Anchor 1.2
+
+Install:
 
 ```bash
 pnpm install
@@ -149,49 +232,80 @@ Run locally:
 pnpm dev
 ```
 
-Validation:
+Validate the web application:
 
 ```bash
 pnpm check
 ```
 
-Database:
+Build the Solana program:
 
 ```bash
-pnpm db:migrate
+anchor build
 ```
 
-## Migration phases
+Database setup for GRP:
 
-1. **Legacy boundary and cleanup** — identify and isolate Bitcoin/Lightning/Nostr responsibilities without breaking the app.
-2. **GRP architecture** — define the Solana state model, authorities, privacy boundary and on-chain/off-chain responsibilities.
-3. **Solana program** — implement the core GRP program and tests.
-4. **Application integration** — replace Nostr/Bitcoin interactions with Solana wallet and transactions.
-5. **Receivable Passport** — derive portable performance history from settled receivables.
-6. **End-to-end demo** — create → confirm → validate → fund → settle → update Passport.
-7. **Hackathon hardening** — README, tests, demo, video and submission.
+```bash
+pnpm db:setup-grp
+```
+
+## Environment variables
+
+```text
+DATABASE_URL
+NEXT_PUBLIC_GRP_PROGRAM_ID
+NEXT_PUBLIC_SOLANA_RPC_URL
+NEXT_PUBLIC_GRP_ORIGINATOR_WALLET
+NEXT_PUBLIC_GRP_USDC_MINT
+NEXT_PUBLIC_ERH_MARKET_TREASURY
+```
+
+Never commit secrets, private keys, seed phrases, mnemonics, PII or production credentials.
+
+## Current status
+
+Implemented and demonstrated on Devnet:
+
+- receivable creation;
+- payer commitment;
+- Market validation;
+- MarketConfig on-chain;
+- pool creation;
+- investor funding;
+- USDC disbursement;
+- payer settlement;
+- investor distribution;
+- separate Market and Protocol fees;
+- requester residual;
+- D+1 overdue;
+- D+5 default;
+- cure after default;
+- Receivable Passport;
+- Market lifecycle;
+- Vercel deployment.
+
+Still in hardening / roadmap:
+
+- full automated Anchor integration coverage for the latest MarketConfig flow;
+- Stability Reserve implementation;
+- Rail Registry;
+- production compliance and jurisdiction-specific controls;
+- independent security review;
+- mainnet readiness.
+
+## Repository notes
+
+The project evolved from **Elas Recebem Hoje**, originally built during Hack4Freedom around Bitcoin, Lightning and Nostr. GRP preserves the core business insight while replacing the chain-specific infrastructure with a Solana-first protocol architecture.
+
+See also:
+
+- `docs/GRP_MIGRATION.md`
+- `docs/12-decisoes.md`
+- `docs/WHITEPAPER.md`
 
 ## Safety
 
-This is an experimental hackathon project.
+This is an experimental hackathon project running on **Solana Devnet**.
 
-Do not use real funds or production credentials without explicit review. Financial logic, permissions, settlement flows and migrations must remain auditable and tested.
-
-Never commit:
-
-```text
-.env.local
-wallet private keys
-seed phrases
-mnemonics
-DATABASE_URL with credentials
-private confirmation tokens
-PII
-private documents
-```
-
-## Historical implementation
-
-The original Hack4Freedom Bitcoin/Lightning implementation remains preserved in Git history and in explicitly marked legacy documentation during migration.
-
-The migration rule is simple: **preserve business logic; replace chain-specific infrastructure deliberately.**
+Do not use real funds or production credentials without legal, operational and security review.
