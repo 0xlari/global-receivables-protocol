@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, CircleDollarSign, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, CircleDollarSign, HandCoins, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
-import { buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
+import { buildAcceptPartialFundingTransaction, buildDisbursePoolTransaction, buildFundPoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
 
 type Opportunity = {
   receivableId: string;
@@ -14,6 +14,7 @@ type Opportunity = {
   dueAt: string;
   marketName: string | null;
   requesterWallet: string;
+  isRequester: boolean;
   poolPda: string;
   targetAmountUsdcMinor: string;
   fundedAmountUsdcMinor: string;
@@ -26,6 +27,7 @@ type Opportunity = {
 type FundingState = {
   amount?: string;
   working?: boolean;
+  releaseWorking?: boolean;
   message?: string;
 };
 
@@ -185,6 +187,111 @@ export function ErhOpportunities() {
     }
   }
 
+
+  async function release(
+    item: Opportunity,
+    action: "ACCEPT_PARTIAL" | "DISBURSE",
+  ) {
+    const current = funding[item.poolPda] ?? {};
+    setFunding((state) => ({
+      ...state,
+      [item.poolPda]: { ...current, releaseWorking: true, message: "" },
+    }));
+
+    try {
+      const provider = (window as Window & { solana?: BrowserSolanaProvider }).solana;
+      if (!provider?.connect || !provider.signAndSendTransaction) {
+        throw new Error("Nenhuma carteira Solana compatível foi encontrada.");
+      }
+
+      const connected = await provider.connect();
+      const requester = new PublicKey(connected.publicKey.toBase58());
+      if (requester.toBase58() !== item.requesterWallet) {
+        throw new Error("Conecte a carteira da pessoa que criou este recebível.");
+      }
+
+      const usdcMintValue = process.env.NEXT_PUBLIC_GRP_USDC_MINT?.trim();
+      if (!usdcMintValue) throw new Error("O mint USDC do GRP não está configurado.");
+
+      const built =
+        action === "ACCEPT_PARTIAL"
+          ? await buildAcceptPartialFundingTransaction({
+              requester,
+              receivableId: item.receivableId,
+            })
+          : await buildDisbursePoolTransaction({
+              requester,
+              receivableId: item.receivableId,
+              usdcMint: new PublicKey(usdcMintValue),
+            });
+
+      const sent = await provider.signAndSendTransaction(built.transaction);
+      await built.connection.confirmTransaction(
+        {
+          signature: sent.signature,
+          blockhash: built.blockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+
+      const response = await fetch(
+        "/api/grp/pools/" + item.receivableId + "/release",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signature: sent.signature,
+            action,
+          }),
+        },
+      );
+      const body = await response.json() as { error?: string };
+      if (!response.ok) {
+        throw new Error(body.error ?? "A transação confirmou, mas não pôde ser sincronizada.");
+      }
+
+      setFunding((state) => ({
+        ...state,
+        [item.poolPda]: {
+          ...state[item.poolPda],
+          releaseWorking: false,
+          message:
+            action === "ACCEPT_PARTIAL"
+              ? "Funding parcial aceito. Agora você pode receber a antecipação."
+              : "Antecipação liberada para sua carteira em USDC.",
+        },
+      }));
+
+      await refresh();
+      setMessage(
+        action === "ACCEPT_PARTIAL"
+          ? "Funding parcial aceito. A pool está pronta para liberação."
+          : "Antecipação liberada com sucesso para a carteira da solicitante.",
+      );
+    } catch (error) {
+      const raw =
+        error instanceof Error ? error.message : "Não foi possível liberar a antecipação.";
+      const friendly =
+        raw === "REQUESTER_NEEDS_DEVNET_SOL"
+          ? "A carteira da solicitante precisa de um pequeno saldo de SOL Devnet para taxas."
+          : raw === "FundingDeadlineNotReached"
+            ? "O funding parcial só pode ser aceito depois do encerramento do prazo da pool."
+            : /simulation|failed to simulate|revert/i.test(raw)
+              ? "A Solana recusou a liberação. Confirme a carteira da solicitante, o estado da pool e o saldo de SOL Devnet."
+              : raw;
+
+      setFunding((state) => ({
+        ...state,
+        [item.poolPda]: {
+          ...current,
+          releaseWorking: false,
+          message: friendly,
+        },
+      }));
+    }
+  }
+
   if (state === "loading") {
     return <div className="dashboard-loading">Carregando oportunidades GRP…</div>;
   }
@@ -203,6 +310,7 @@ export function ErhOpportunities() {
   if (items.length === 0) {
     return (
       <div className="empty-demo-state">
+        {message ? <p role="status">{message}</p> : null}
         <ShieldCheck size={28} />
         <h2>Nenhuma oportunidade GRP está aberta agora.</h2>
         <p>Uma oportunidade aparecerá aqui depois que um recebível aprovado tiver uma pool USDC criada.</p>
@@ -221,7 +329,18 @@ export function ErhOpportunities() {
         const progress = target > 0 ? Math.min(100, Math.round((funded / target) * 100)) : 0;
         const remaining = Math.max(0, target - funded);
         const current = funding[item.poolPda] ?? {};
-        const open = item.status === "OPEN" && remaining > 0;
+        const deadlinePassed = Date.now() > Number(item.fundingDeadlineUnix) * 1000;
+        const fundedBps = target > 0 ? Math.floor((funded * 10_000) / target) : 0;
+        const open = item.status === "OPEN" && remaining > 0 && !deadlinePassed;
+        const canAcceptPartial =
+          item.isRequester &&
+          item.status === "OPEN" &&
+          deadlinePassed &&
+          funded > 0 &&
+          fundedBps >= item.minimumPartialBps;
+        const canDisburse =
+          item.isRequester &&
+          (item.status === "FULL" || item.status === "ACCEPTED_PARTIAL");
 
         return (
           <article key={item.poolPda}>
@@ -239,6 +358,48 @@ export function ErhOpportunities() {
               <div><dt>Prazo</dt><dd>{new Date(Number(item.fundingDeadlineUnix) * 1000).toLocaleDateString("pt-BR")}</dd></div>
               <div><dt>Vencimento</dt><dd>{new Date(item.dueAt).toLocaleDateString("pt-BR")}</dd></div>
             </dl>
+
+            {item.isRequester && canAcceptPartial ? (
+              <div className="confirmation-form" style={{ marginTop: "1.25rem" }}>
+                <span className="eyebrow"><HandCoins size={16} /> Funding parcial disponível</span>
+                <h4>Aceite o valor já captado.</h4>
+                <p>
+                  O prazo da pool terminou e o funding atingiu o mínimo definido. Ao aceitar,
+                  esta pool fica pronta para liberar a antecipação.
+                </p>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={current.releaseWorking}
+                  onClick={() => void release(item, "ACCEPT_PARTIAL")}
+                >
+                  <HandCoins size={17} />
+                  {current.releaseWorking ? "Aguardando carteira…" : "Aceitar funding parcial"}
+                </button>
+                {current.message ? <p role="status">{current.message}</p> : null}
+              </div>
+            ) : null}
+
+            {item.isRequester && canDisburse ? (
+              <div className="confirmation-form" style={{ marginTop: "1.25rem" }}>
+                <span className="eyebrow"><HandCoins size={16} /> Antecipação pronta</span>
+                <h4>Receba {usdc(item.fundedAmountUsdcMinor)} em USDC.</h4>
+                <p>
+                  Os recursos estão no vault da pool. A liberação exige sua assinatura e
+                  envia o USDC para a carteira que criou o recebível.
+                </p>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={current.releaseWorking}
+                  onClick={() => void release(item, "DISBURSE")}
+                >
+                  <HandCoins size={17} />
+                  {current.releaseWorking ? "Aguardando carteira…" : "Receber antecipação"}
+                </button>
+                {current.message ? <p role="status">{current.message}</p> : null}
+              </div>
+            ) : null}
 
             {open ? (
               <div className="confirmation-form" style={{ marginTop: "1.25rem" }}>
@@ -292,10 +453,14 @@ export function ErhOpportunities() {
                 {current.message ? <p role="status">{current.message}</p> : null}
               </div>
             ) : (
-              <div className="confirmation-form__security">
-                <ShieldCheck size={18} />
-                Esta oportunidade não aceita novos aportes no estado atual.
-              </div>
+              !canAcceptPartial && !canDisburse ? (
+                <div className="confirmation-form__security">
+                  <ShieldCheck size={18} />
+                  {item.status === "OPEN" && deadlinePassed
+                    ? "O prazo de funding terminou. Aguardando ação da solicitante ou encerramento da pool."
+                    : "Esta oportunidade não aceita novos aportes no estado atual."}
+                </div>
+              ) : null
             )}
           </article>
         );
