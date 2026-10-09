@@ -37,6 +37,7 @@ export type BrowserSolanaProvider = {
   publicKey?: { toBase58(): string };
   connect(): Promise<{ publicKey: { toBase58(): string } }>;
   signMessage?(message: Uint8Array, display?: "utf8"): Promise<{ signature: Uint8Array }>;
+  signTransaction?(transaction: Transaction): Promise<Transaction>;
   signAndSendTransaction(transaction: Transaction): Promise<{ signature: string }>;
 };
 
@@ -139,19 +140,6 @@ export async function buildPayerConfirmationTransaction(input: {
     blockhash,
     lastValidBlockHeight,
   }).add(instruction);
-
-  const simulation = await connection.simulateTransaction(transaction);
-  if (simulation.value.err) {
-    const logs = simulation.value.logs ?? [];
-    const anchorLog =
-      [...logs].reverse().find((line) =>
-        line.includes("AnchorError") ||
-        line.includes("Error Code:") ||
-        line.includes("Program log: Error") ||
-        line.includes("custom program error")
-      ) ?? logs.at(-1) ?? "unknown simulation error";
-    throw new Error("GRP_REPAYMENT_SIMULATION_FAILED::" + anchorLog);
-  }
 
   return {
     connection,
@@ -577,6 +565,20 @@ export async function buildManualRepaymentTransaction(input: {
     blockhash,
     lastValidBlockHeight,
   }).add(instruction);
+
+  const simulation = await connection.simulateTransaction(transaction);
+  if (simulation.value.err) {
+    const logs = simulation.value.logs ?? [];
+    const usefulLog =
+      [...logs].reverse().find((line) =>
+        line.includes("AnchorError") ||
+        line.includes("Error Code:") ||
+        line.includes("Program log: Error") ||
+        line.includes("custom program error") ||
+        line.includes("insufficient")
+      ) ?? logs.at(-1) ?? JSON.stringify(simulation.value.err);
+    throw new Error("GRP_REPAYMENT_SIMULATION_FAILED::" + usefulLog);
+  }
 
   return {
     connection,

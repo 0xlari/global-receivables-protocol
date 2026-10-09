@@ -284,7 +284,7 @@ export function ClientConfirmationForm() {
       const sent = await provider.signAndSendTransaction(built.transaction);
       await built.connection.confirmTransaction(sent.signature, "confirmed");
 
-      setTransactionSignature(sent.signature);
+      setTransactionSignature(signature);
       setMessage(
         "Recebível confirmado e compromisso on-chain registrado na Solana.",
       );
@@ -324,7 +324,7 @@ export function ClientConfirmationForm() {
 
     try {
       const provider = browserWallet();
-      if (!provider?.connect || !provider.signAndSendTransaction) {
+      if (!provider?.connect || (!provider.signTransaction && !provider.signAndSendTransaction)) {
         throw new Error("Nenhuma carteira Solana compatível foi encontrada neste navegador.");
       }
 
@@ -341,10 +341,22 @@ export function ClientConfirmationForm() {
         amountUsdcMinor: usdcMinorAmount,
       });
 
-      const sent = await provider.signAndSendTransaction(built.transaction);
+      let signature: string;
+      if (provider.signTransaction) {
+        const signed = await provider.signTransaction(built.transaction);
+        signature = await built.connection.sendRawTransaction(signed.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: "confirmed",
+          maxRetries: 3,
+        });
+      } else {
+        const sent = await provider.signAndSendTransaction(built.transaction);
+        signature = sent.signature;
+      }
+
       await built.connection.confirmTransaction(
         {
-          signature: sent.signature,
+          signature,
           blockhash: built.blockhash,
           lastValidBlockHeight: built.lastValidBlockHeight,
         },
@@ -357,7 +369,7 @@ export function ClientConfirmationForm() {
         body: JSON.stringify({
           action: "settle",
           token,
-          signature: sent.signature,
+          signature,
         }),
       });
       const body = await response.json() as { error?: string; outcome?: string };
