@@ -650,6 +650,79 @@ export async function buildClaimDistributionTransaction(input: {
   };
 }
 
+
+export async function buildProcessDelinquencyTransaction(input: {
+  feePayer: PublicKey;
+  requester: PublicKey;
+  receivableId: string;
+}) {
+  const connection = new Connection(GRP_RPC_URL, "confirmed");
+  const pdas = deriveGrpPdas({
+    requester: input.requester,
+    receivableId: input.receivableId,
+  });
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), pdas.receivable.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+  const [passport] = PublicKey.findProgramAddressSync(
+    [Buffer.from("passport"), input.requester.toBuffer()],
+    GRP_PROGRAM_ID,
+  );
+
+  const [receivableInfo, poolInfo, payerAuthorizationInfo, passportInfo, feeBalance] =
+    await Promise.all([
+      connection.getAccountInfo(pdas.receivable, "confirmed"),
+      connection.getAccountInfo(pool, "confirmed"),
+      connection.getAccountInfo(pdas.payerAuthorization, "confirmed"),
+      connection.getAccountInfo(passport, "confirmed"),
+      connection.getBalance(input.feePayer, "confirmed"),
+    ]);
+
+  if (!receivableInfo) throw new Error("GRP_RECEIVABLE_NOT_FOUND_ON_DEVNET");
+  if (!poolInfo) throw new Error("GRP_POOL_NOT_FOUND_ON_DEVNET");
+  if (!payerAuthorizationInfo) throw new Error("GRP_PAYER_COMMITMENT_NOT_FOUND");
+  if (!passportInfo) throw new Error("GRP_PASSPORT_NOT_FOUND_ON_DEVNET");
+  if (feeBalance === 0) throw new Error("DELINQUENCY_KEEPER_NEEDS_DEVNET_SOL");
+
+  const dueAtUnix = receivableInfo.data.readBigInt64LE(299);
+  const nowUnix = BigInt(Math.floor(Date.now() / 1000));
+  if (nowUnix < dueAtUnix + 86_400n) {
+    throw new Error("DELINQUENCY_WINDOW_NOT_REACHED");
+  }
+
+  const instruction = new TransactionInstruction({
+    programId: GRP_PROGRAM_ID,
+    keys: [
+      { pubkey: pdas.config, isSigner: false, isWritable: false },
+      { pubkey: pdas.receivable, isSigner: false, isWritable: true },
+      { pubkey: pool, isSigner: false, isWritable: true },
+      { pubkey: pdas.payerAuthorization, isSigner: false, isWritable: true },
+      { pubkey: passport, isSigner: false, isWritable: true },
+    ],
+    data: Buffer.from(await anchorDiscriminator("process_delinquency")),
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: input.feePayer,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(instruction);
+
+  return {
+    connection,
+    transaction,
+    receivable: pdas.receivable,
+    pool,
+    payerAuthorization: pdas.payerAuthorization,
+    passport,
+    blockhash,
+    lastValidBlockHeight,
+  };
+}
+
 export async function payerCommitmentHash(input: {
   receivableId: string;
   amountUsdcMinor: bigint;
