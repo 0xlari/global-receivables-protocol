@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Copy, FileCheck2, Link2, RefreshCw, CircleDollarSign } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Copy, FileCheck2, Link2, RefreshCw, CircleDollarSign } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
-import { buildCreatePoolTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
+import { buildCreatePoolTransaction, buildProcessDelinquencyTransaction, type BrowserSolanaProvider } from "@/lib/grp-solana";
 
 type Receivable = {
   id: string;
@@ -35,7 +35,7 @@ const statusLabels: Record<string, string> = {
   APPROVED: "Aprovado",
   POOLED: "Pool criada",
   ADVANCED: "Antecipado",
-  DUE: "Aguardando liquidação",
+  DUE: "Em atraso",
   PAID: "Pago",
   DEFAULTED: "Inadimplente",
   CLOSED: "Concluído",
@@ -52,6 +52,7 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [poolWorking, setPoolWorking] = useState(false);
+  const [delinquencyWorking, setDelinquencyWorking] = useState(false);
   const [targetUsd, setTargetUsd] = useState("");
   const [minimumPartialPercent, setMinimumPartialPercent] = useState("50");
   const [discountPercent, setDiscountPercent] = useState("10");
@@ -153,6 +154,80 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
   }
 
 
+  async function processDelinquency() {
+    if (!item?.requesterWallet) {
+      setMessage("A carteira Solana da solicitante não está vinculada.");
+      return;
+    }
+
+    setDelinquencyWorking(true);
+    setMessage("");
+
+    try {
+      const provider = (window as Window & { solana?: BrowserSolanaProvider }).solana;
+      if (!provider?.connect || !provider.signAndSendTransaction) {
+        throw new Error("Nenhuma carteira Solana compatível foi encontrada.");
+      }
+
+      const connected = await provider.connect();
+      const feePayer = new PublicKey(connected.publicKey.toBase58());
+      const requester = new PublicKey(item.requesterWallet);
+      const built = await buildProcessDelinquencyTransaction({
+        feePayer,
+        requester,
+        receivableId: item.id,
+      });
+
+      const sent = await provider.signAndSendTransaction(built.transaction);
+      await built.connection.confirmTransaction(
+        {
+          signature: sent.signature,
+          blockhash: built.blockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+
+      const response = await fetch(
+        "/api/grp/receivables/" + item.id + "/delinquency",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signature: sent.signature }),
+        },
+      );
+      const body = await response.json() as {
+        error?: string;
+        status?: string;
+        onchainStatus?: string;
+      };
+      if (!response.ok) {
+        throw new Error(body.error ?? "O atraso foi registrado on-chain, mas não pôde ser sincronizado.");
+      }
+
+      setMessage(
+        body.status === "DEFAULTED"
+          ? "Inadimplência registrada no GRP. O pagador ainda pode quitar e curar o default."
+          : "Atraso registrado no GRP. O link de pagamento continua disponível ao pagador.",
+      );
+      await load();
+    } catch (error) {
+      const raw =
+        error instanceof Error ? error.message : "Não foi possível atualizar o estado de atraso.";
+      const friendly =
+        raw === "DELINQUENCY_WINDOW_NOT_REACHED"
+          ? "O GRP só marca atraso a partir de D+1 do vencimento."
+          : raw === "DELINQUENCY_KEEPER_NEEDS_DEVNET_SOL"
+            ? "A carteira usada para registrar o atraso precisa de um pequeno saldo de SOL Devnet."
+            : /simulation|failed to simulate|revert/i.test(raw)
+              ? "A Solana recusou a atualização. O recebível precisa estar vencido há pelo menos 1 dia e ainda não pode estar liquidado."
+              : raw;
+      setMessage(friendly);
+    } finally {
+      setDelinquencyWorking(false);
+    }
+  }
+
   async function createPool() {
     if (!item?.requesterWallet) {
       setMessage("A carteira Solana da solicitante não está vinculada.");
@@ -252,8 +327,15 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
   }
 
   const canReissue =
-    (item.status === "AWAITING_CLIENT" || item.status === "UNDER_VALIDATION") &&
-    (item.confirmationStatus === "PENDING" || item.confirmationStatus === "ACCEPTED");
+    (((item.status === "AWAITING_CLIENT" || item.status === "UNDER_VALIDATION") &&
+      (item.confirmationStatus === "PENDING" || item.confirmationStatus === "ACCEPTED")) ||
+      ((item.status === "ADVANCED" || item.status === "DUE" || item.status === "DEFAULTED") &&
+        item.confirmationStatus === "ACCEPTED"));
+  const isPaymentLink =
+    item.status === "ADVANCED" || item.status === "DUE" || item.status === "DEFAULTED";
+  const delinquencyEligible =
+    (item.status === "ADVANCED" || item.status === "DUE") &&
+    Date.now() >= new Date(item.dueAt).getTime() + 86_400_000;
 
   return (
     <div className="dashboard">
@@ -289,13 +371,42 @@ export function ErhReceivableDetail({ receivableId }: { receivableId: string }) 
         {canReissue ? (
           <div className="demo-actions" style={{ marginTop: "1.5rem" }}>
             <button className="button button--secondary" type="button" onClick={() => void reissueLink()}>
-              <Link2 size={16} /> {link ? "Gerar outro link" : "Gerar link do pagador"}
+              <Link2 size={16} /> {link
+                ? isPaymentLink ? "Gerar outro link de pagamento" : "Gerar outro link"
+                : isPaymentLink ? "Gerar link de pagamento" : "Gerar link do pagador"}
             </button>
             {link ? (
               <button className="button button--primary" type="button" onClick={() => { void navigator.clipboard.writeText(link); setCopied(true); }}>
                 <Copy size={16} /> {copied ? "Copiado" : "Copiar link"}
               </button>
             ) : null}
+          </div>
+        ) : null}
+
+        {delinquencyEligible ? (
+          <div className="confirmation-form" style={{ marginTop: "1.5rem" }}>
+            <span className="eyebrow"><AlertTriangle size={16} /> Monitoramento de atraso</span>
+            <h2>{item.status === "DUE" ? "Reavaliar atraso do recebível" : "Atualizar estado de pagamento"}</h2>
+            <p>
+              O GRP registra atraso em D+1 e inadimplência em D+5. Essa transação não move
+              fundos; ela apenas atualiza o estado público do recebível e, no default, o Passport.
+            </p>
+            <button
+              className="button button--secondary"
+              type="button"
+              disabled={delinquencyWorking}
+              onClick={() => void processDelinquency()}
+            >
+              <AlertTriangle size={17} />
+              {delinquencyWorking ? "Aguardando carteira…" : item.status === "DUE" ? "Reavaliar atraso" : "Registrar atraso on-chain"}
+            </button>
+          </div>
+        ) : null}
+
+        {item.status === "DEFAULTED" ? (
+          <div className="confirmation-form__security" style={{ marginTop: "1.5rem" }}>
+            <AlertTriangle size={18} />
+            Inadimplência registrada. O pagador ainda pode quitar o recebível pelo link de pagamento; após a liquidação, o GRP registra a cura no histórico.
           </div>
         ) : null}
 

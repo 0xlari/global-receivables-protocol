@@ -44,7 +44,7 @@ const statusLabels: Record<string, string> = {
   APPROVED: "Aprovado",
   POOLED: "Oportunidade aberta",
   ADVANCED: "Antecipado",
-  DUE: "Aguardando liquidação",
+  DUE: "Em atraso",
   PAID: "Pago",
   DEFAULTED: "Inadimplente",
   CLOSED: "Concluído",
@@ -206,9 +206,10 @@ export function GrpDashboard({
               const canIssueLink =
                 ((item.status === "AWAITING_CLIENT" || item.status === "UNDER_VALIDATION") &&
                   (item.confirmationStatus === "PENDING" || item.confirmationStatus === "ACCEPTED")) ||
-                ((item.status === "ADVANCED" || item.status === "DUE") &&
+                ((item.status === "ADVANCED" || item.status === "DUE" || item.status === "DEFAULTED") &&
                   item.confirmationStatus === "ACCEPTED");
-              const isPaymentLink = item.status === "ADVANCED" || item.status === "DUE";
+              const isPaymentLink =
+                item.status === "ADVANCED" || item.status === "DUE" || item.status === "DEFAULTED";
 
               return (
                 <div key={item.id}>
@@ -266,6 +267,18 @@ export function GrpDashboard({
                         Antecipação recebida. Próximo passo: enviar o link de pagamento ao pagador para liquidar o recebível.
                       </small>
                     </>
+                  ) : null}
+
+                  {experience === "ERH" && item.status === "DUE" ? (
+                    <small>
+                      Pagamento em atraso. Reenvie o link ao pagador e acompanhe a atualização on-chain.
+                    </small>
+                  ) : null}
+
+                  {experience === "ERH" && item.status === "DEFAULTED" ? (
+                    <small>
+                      Inadimplência registrada. O pagamento continua disponível e pode curar o default no histórico do GRP.
+                    </small>
                   ) : null}
 
                   {canIssueLink ? (

@@ -136,7 +136,11 @@ export function ClientConfirmationForm() {
             receivableId: data.receivableId,
           });
           if (commitment.exists) {
-            if (data.receivableStatus === "ADVANCED" || data.receivableStatus === "DUE") {
+            if (
+              data.receivableStatus === "ADVANCED" ||
+              data.receivableStatus === "DUE" ||
+              data.receivableStatus === "DEFAULTED"
+            ) {
               setStep("pay");
             } else if (data.receivableStatus === "PAID") {
               setMessage("Este recebível já foi liquidado no GRP.");
@@ -419,10 +423,13 @@ export function ClientConfirmationForm() {
           O compromisso já está registrado no GRP. O pagamento exige uma nova assinatura sua.
         </div>
 
-        <h2>Liquidar recebível em USDC</h2>
+        <h2>{details.receivableStatus === "DEFAULTED" ? "Quitar recebível em USDC" : "Liquidar recebível em USDC"}</h2>
         <p>
           O GRP não possui autorização de débito automático. O USDC só sai da sua carteira
           depois que você confirmar esta transação na Phantom.
+          {details.receivableStatus === "DEFAULTED"
+            ? " O pagamento após inadimplência preserva o registro histórico e marca o default como curado."
+            : ""}
         </p>
 
         <dl className="authorization-review">
