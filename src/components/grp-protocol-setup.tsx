@@ -7,6 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import {
   buildInitializeMarketTransaction,
   buildInitializeProtocolTransaction,
+  buildUpdateMarketTreasuryTransaction,
   getGrpMarketConfigStatus,
   getGrpProtocolStatus,
   GRP_PROGRAM_ID,
@@ -46,7 +47,8 @@ type MarketState = {
 const configuredAuthority = process.env.NEXT_PUBLIC_GRP_ORIGINATOR_WALLET ?? "";
 const configuredUsdcMint = process.env.NEXT_PUBLIC_GRP_USDC_MINT ?? "";
 const configuredMarketTreasury =
-  process.env.NEXT_PUBLIC_ERH_MARKET_TREASURY ?? configuredAuthority;
+  process.env.NEXT_PUBLIC_ERH_MARKET_TREASURY ??
+  "GrRZJHrcqs3rX5mWV4nQLbjSanif2ksJB9mncAWWdnaV";
 
 function browserWallet() {
   return (window as Window & { solana?: BrowserSolanaProvider }).solana;
@@ -251,6 +253,65 @@ export function GrpProtocolSetup() {
     }
   }
 
+  async function updateMarketTreasury() {
+    setWorking(true);
+    setMessage("");
+    setSignature("");
+
+    try {
+      if (!profile?.solanaWallet || profile.solanaWallet !== configuredAuthority) {
+        throw new Error("Entre com a carteira authority configurada do GRP.");
+      }
+      if (!market.initialized) {
+        throw new Error("O MarketConfig ainda não foi inicializado.");
+      }
+
+      const provider = browserWallet();
+      if (!provider?.connect || !provider.signAndSendTransaction) {
+        throw new Error("Nenhuma carteira Solana compatível foi encontrada neste navegador.");
+      }
+
+      const connected = await provider.connect();
+      const authority = new PublicKey(connected.publicKey.toBase58());
+      if (authority.toBase58() !== configuredAuthority) {
+        throw new Error("Conecte a carteira authority configurada para o GRP.");
+      }
+
+      const built = await buildUpdateMarketTreasuryTransaction({
+        authority,
+        marketSlug: "elas-recebem-hoje",
+        newMarketTreasury: new PublicKey(configuredMarketTreasury),
+      });
+
+      const sent = await provider.signAndSendTransaction(built.transaction);
+      await built.connection.confirmTransaction(
+        {
+          signature: sent.signature,
+          blockhash: built.blockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+
+      setSignature(sent.signature);
+      setMessage("Market treasury do Elas Recebem Hoje atualizada na Devnet.");
+      await refreshMarket();
+    } catch (error) {
+      const text =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar a Market treasury.";
+      setMessage(
+        text === "GRP_MARKET_TREASURY_ALREADY_SET"
+          ? "A Market treasury já está configurada nesta carteira."
+          : text,
+      );
+      await refreshMarket().catch(() => undefined);
+    } finally {
+      setWorking(false);
+    }
+  }
+
   if (loading || authenticated === null) {
     return <div className="dashboard-loading">Lendo o estado do GRP na Devnet…</div>;
   }
@@ -347,6 +408,29 @@ export function GrpProtocolSetup() {
             <div><dt>GRP fee</dt><dd>{((market.protocolFeeBps ?? 0) / 100).toFixed(2)}%</dd></div>
             <div><dt>Rules version</dt><dd>{market.rulesVersion ?? "—"}</dd></div>
           </dl>
+          {market.marketTreasury !== configuredMarketTreasury ? (
+            <>
+              <div className="confirmation-form__security" style={{ marginTop: "1rem" }}>
+                <CircleAlert />
+                A treasury on-chain ainda é a antiga. A nova treasury configurada é{" "}
+                <code>{short(configuredMarketTreasury)}</code>.
+              </div>
+              <button
+                className="button button--primary"
+                type="button"
+                disabled={working || !authorizedSession}
+                onClick={() => void updateMarketTreasury()}
+              >
+                {working ? <LoaderCircle className="spin" size={19} /> : <WalletCards size={19} />}
+                {working ? "Aguardando assinatura…" : "Atualizar Market treasury"}
+              </button>
+            </>
+          ) : (
+            <div className="confirmation-form__security" style={{ marginTop: "1rem" }}>
+              <CheckCircle2 />
+              Market treasury separada do GRP e configurada corretamente.
+            </div>
+          )}
         </>
       ) : (
         <>
