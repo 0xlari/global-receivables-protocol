@@ -10,11 +10,11 @@ export const metadata: Metadata = {
 
 const process = [
   ["01","Propose","Define the audience, geography, receivable type, operator, rails and operating model."],
-  ["02","Due diligence","GRP reviews operator capacity, underwriting, money flow, controls and local responsibilities."],
-  ["03","Sandbox","Approved candidates start with controlled limits while the operating model is validated."],
-  ["04","Approval","Rules, operator responsibilities, rails and economics are approved for the Market."],
-  ["05","Launch","The Market becomes discoverable and can originate receivables through GRP."],
-  ["06","Monitor","Performance, incidents, rails and operating obligations remain under ongoing review."],
+  ["02","Review","GRP reviews operator capacity, underwriting, money flow, controls and declared local responsibilities."],
+  ["03","Sandbox","Approved candidates start with controlled limits while rules, rails and operations are validated."],
+  ["04","Activate","Rules, operator responsibilities, economics and settlement configuration are approved for the Market."],
+  ["05","Operate","The Market can originate eligible receivables while performance and incidents remain observable."],
+  ["06","Pause / retire","New origination can stop without deleting existing receivables or Passport history."],
 ];
 
 export default function BuildOnGrpPage() {
@@ -40,7 +40,7 @@ export default function BuildOnGrpPage() {
           </div>
           <div className={styles.roles}>
             <article className={styles.role}><small>PROTOCOL</small><h3>GRP</h3><p>Canonical receivable state, USDC settlement, Passport, market registry and shared infrastructure.</p></article>
-            <article className={styles.role}><small>LOCAL LAYER</small><h3>Market Operator</h3><p>Distribution, origination, underwriting, customer operation and the local responsibilities declared for that Market.</p></article>
+            <article className={styles.role}><small>LOCAL LAYER</small><h3>Market Operator</h3><p>Distribution, origination, eligibility and validation rules, customer operations, local rails, compliance coordination and the responsibilities declared for that Market.</p></article>
             <article className={styles.role}><small>PAYMENT INFRA</small><h3>Rail Provider</h3><p>Approved crypto-native, fiat or hybrid rails used by a Market where appropriate.</p></article>
           </div>
         </div>
@@ -62,16 +62,16 @@ export default function BuildOnGrpPage() {
         <div>
           <span className={styles.eyebrow}>ECONOMICS</span>
           <h2>Operators grow a market. GRP grows the infrastructure.</h2>
-          <p style={{color:"#8e988f",lineHeight:1.7}}>Operators can charge for the services they provide. GRP captures protocol economics on successful activity and fixed fees for market activation and maintenance.</p>
+          <p style={{color:"#8e988f",lineHeight:1.7}}>Operators can charge an approved Market fee for the operating layer they provide. GRP captures its separate protocol fee on successful settlement. The two economics are explicit and auditable.</p>
         </div>
         <div className={styles.feeCard}>
           <strong>0.50%</strong>
           <span>GRP protocol fee on successful settlement</span>
           <p>Transparent protocol economics, separate from the operator&apos;s own approved fee.</p>
           <dl className={styles.feeRows}>
-            <div><dt>Market activation</dt><dd>Fixed fee</dd></div>
-            <div><dt>Market maintenance</dt><dd>Recurring fixed fee</dd></div>
-            <div><dt>Operator economics</dt><dd>Market-specific</dd></div>
+            <div><dt>GRP protocol fee</dt><dd>0.50% settled face value</dd></div>
+            <div><dt>Operator economics</dt><dd>Market-specific and approved</dd></div>
+            <div><dt>Requester residual</dt><dd>Returned after settlement</dd></div>
           </dl>
         </div>
       </section>
@@ -88,8 +88,8 @@ export default function BuildOnGrpPage() {
             <label className={styles.field}>Rail model<select name="rail"><option>Crypto-native</option><option>Fiat</option><option>Hybrid</option></select></label>
             <label className={styles.field}>Settlement asset<input name="asset" defaultValue="USDC" /></label>
             <label className={styles.field + " " + styles.fieldWide}>Operating model<textarea name="model" placeholder="Receivable types, validation, local rails, partners and responsibilities." /></label>
-            <p className={styles.formNote}>This proposal flow is presented for the hackathon product experience. Submissions are not persisted yet; production onboarding will include identity, operational and jurisdiction-specific review.</p>
-            <button className={styles.disabledSubmit} type="button" disabled>Proposal submission coming next</button>
+            <p className={styles.formNote}>This proposal flow documents the information required to evaluate a Market. For the hackathon MVP, proposals are reviewed manually before any database or on-chain activation. A form submission alone never activates a Market.</p>
+            <button className={styles.disabledSubmit} type="button" disabled>Manual review required for activation</button>
           </form>
         </div>
       </section>
