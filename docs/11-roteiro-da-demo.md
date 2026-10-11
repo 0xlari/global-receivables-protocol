@@ -1,63 +1,94 @@
-# Roteiro da demo — 3 a 5 minutos
+# P3.4 — Demo flow final do GRP
 
-## Narrativa
+Este documento define o percurso operacional do vídeo. Pitch, narração e duração
+final pertencem à P3.7. A verificação de produção e envs pertence à P3.5.
 
-“Ana mora no Brasil e tem US$ 2.000 a receber de uma empresa no exterior no dia 30. Pode ser salário, venda, comissão ou serviço. Em vez de esperar e enfrentar um câmbio pouco transparente, transforma o pagamento confirmado em uma pool.”
+## Cenário principal
+
+Ana, personagem fictícia, tem US$ 100 a receber de um cliente dos Estados Unidos
+por um serviço. Ela usa Elas Recebem Hoje, o primeiro Market do GRP.
+Rede: Solana Devnet; ativo: token de teste do mint configurado como USDC no ambiente.
+Não apresentar tokens de teste como dinheiro real ou como USDC mainnet.
+
+Usar o mesmo recebível da criação ao Passport e financiamento completo.
+Funding parcial, D+1, D+5 e cura são cenários opcionais separados: dependem do relógio
+e não devem alongar o percurso principal.
+
+### Valores do exemplo, com funding completo
+
+| Movimento | Valor |
+|---|---:|
+| Valor nominal | 100,00 USDC |
+| Meta/antecipação (80%) | 80,00 USDC |
+| Pagamento integral do pagador | 100,00 USDC |
+| Principal + retorno do investidor (3,5% sobre 80) | 82,80 USDC |
+| Fee ERH (1% sobre nominal) | 1,00 USDC |
+| Fee GRP (0,50% sobre nominal) | 0,50 USDC |
+| Residual da solicitante | 15,70 USDC |
+
+Fonte das regras: `src/config/erh-market-rules.ts` e MarketConfig on-chain.
+Antes da gravação, conferir que a configuração publicada coincide com estas regras.
+Alterar o tamanho do exemplo é permitido; alterar regras financeiras não faz parte desta etapa.
 
 ## Preparação
 
-- Dados inteiramente fictícios.
-- Conta da solicitante, pagador e aportadora prontas.
-- Pool pré-carregada em 92% para aporte pequeno.
-- Wallet mainnet com valor mínimo e canal testado.
-- Modo offline pronto.
+- Carteiras separadas: solicitante, pagador, investidor e operador autorizado.
+- Todas com SOL Devnet suficiente para taxas/criação de contas; pagador e investidor
+  também com saldo do mint exato configurado no ambiente (100 e 80 tokens, respectivamente).
+- Usar apenas comprovante fictício em PDF/PNG/JPG. A interface envia metadados e um
+  compromisso salted; não afirmar que o arquivo completo foi armazenado ou auditado.
+- Solicitante sem outro recebível ativo que bloqueie um novo cadastro.
+- Escolher vencimento pelo menos 7 dias à frente e funding antes do vencimento.
+- Preferir perfis de navegador separados por papel para não confundir sessão e carteira.
+  No mesmo perfil, trocar a carteira na extensão e fazer novo login como o próximo papel.
+  Abas do mesmo perfil compartilham a sessão.
+- Guardar ID do recebível, PDA da pool, PDA do Passport e assinaturas públicas.
+  Links privados do pagador contêm token: não colocar em README, repo ou submission.
 
-## Sequência
+## Percurso e critério de sucesso
 
-### 0:00–0:35 — problema e limite
+| Passo | Papel | Tela / ação | Evidência antes de avançar |
+|---|---|---|---|
+| 1 | Visitante | Home GRP → Markets → Open first Market | Marca GRP e Market ERH apresentados como protocolo e aplicação |
+| 2 | Solicitante | ERH → Criar recebível → login Solana | Sessão vinculada à carteira da solicitante; login não transfere tokens |
+| 3 | Solicitante | Criar serviço, descrição fictícia, país US, valor 100 e vencimento futuro | Registro privado + transação confirmada; link do pagador disponível |
+| 4 | Pagador | Abrir o link privado; aceitar os dados; registrar compromisso | Confirmação no banco + compromisso on-chain com a carteira do pagador; nenhum débito automático |
+| 5 | Operador | /administracao/grp → revisar o recebível → aprovar | Carteira autorizada; decisão confirmada on-chain e sincronizada no banco |
+| 6 | Solicitante | Painel → detalhe do recebível → criar oportunidade | Pool confirmada; meta de 80 USDC e prazo válido |
+| 7 | Investidor | /elas-recebem-hoje/oportunidades → financiar 80 USDC | Aporte confirmado, pool FULL e contribuição da carteira registrada |
+| 8 | Solicitante | Oportunidades → Receber antecipação | Desembolso confirmado de 80 USDC e status ADVANCED |
+| 9 | Solicitante | Painel/detalhe → Gerar link de pagamento | Novo link privado válido disponível para o mesmo recebível |
+| 10 | Pagador | Abrir link → Pagar em USDC → assinar nova transação | Quitação integral de 100 USDC confirmada; banco sincronizado; pool SETTLED |
+| 11 | Investidor | Oportunidades → Resgatar retorno | Resgate confirmado de 82,80 USDC para a mesma carteira do aporte |
+| 12 | Solicitante | Oportunidades → Receber saldo residual | 15,70 USDC à solicitante; fees de 1,00 e 0,50 enviadas às tesourarias separadas |
+| 13 | Solicitante | /elas-recebem-hoje/passaporte → atualizar | Contagem/volume de liquidação refletem o recebível e PDA verificável no Explorer Devnet |
 
-Mostrar perfil da Ana: limite inicial de US$ 100. US$ 500 de garantia elevam o limite total para até US$ 1.000; identidade verificada e histórico positivo completam os sinais que justificam o limite demonstrativo de US$ 2.500. Destacar que redes sociais são sinal limitado, não prova de riqueza.
+O pagamento da interface usa `manual_repayment`, com nova assinatura do pagador.
+O código atual permite quitação voluntária antes do vencimento. Já `settle_receivable`
+marca cobrança devida e exige vencimento: não confundir essas instruções.
+Confirmar a quitação antecipada no programa publicado durante o ensaio.
+Se a versão publicada não permitir, usar um recebível já antecipado e vencido para
+a segunda parte, identificando a mudança de cenário. Não burlar relógio ou regras.
 
-### 0:35–1:15 — recebível e confirmação
+## Plano de recuperação
 
-Mostrar recebível internacional de US$ 2.000, origem do pagamento, país do pagador, vencimento dia 30 e desconto de 5%. Exibir cotação, tarifas e equivalente em BRL. Abrir a confirmação, mostrar o pagador aceitando pagar em BTC e então executar a validação automática. Explicar que nenhum dólar entra na plataforma. Não abrir documentos reais.
+| Interrupção | Ação |
+|---|---|
+| Cadastro privado salvo sem registro Solana | Usar Registrar na Solana no mesmo cadastro; não criar duplicata |
+| Carteira diferente da sessão | Trocar carteira e refazer login no perfil correto |
+| Link expirado/inválido | Solicitante reemite no painel/detalhe; usar apenas o link mais recente |
+| Transação enviada com resultado desconhecido | Conferir assinatura no Explorer e atualizar; não repetir a transferência às cegas |
+| Transação confirmada, banco não sincronizado | Registrar assinatura e erro; resolver sincronização antes de continuar |
+| RPC ou carteira indisponível | Usar captura previamente gravada de uma operação real Devnet, identificada; não simular sucesso financeiro |
 
-### 1:15–2:00 — duas modalidades
+## Verificação desta etapa
 
-Comparar:
+- Inspecionado: encadeamento de componentes, APIs de sincronização e instruções do programa.
+- Observado em produção: Markets → ERH; dois desvios identificados (CTA genérico e exemplo de 95%).
+- Corrigido no código: CTA preserva o Market ERH; exemplo usa os 80% da configuração.
+- Texto do protocolo corrigido: liquidação requer nova assinatura do pagador.
+- Pendente: ensaio com as quatro carteiras e registro de assinaturas/saldos.
+- Pendente: confirmação da versão do programa publicado e comportamento de quitação antecipada.
 
-- Full BTC: sats finais variam; aportadora assume volatilidade.
-- Pareada em dólar: aporte convertido para USDT; principal acompanhado em USD.
-
-Selecionar Full BTC para o caminho principal, explicar US$ 1.900 de antecipação e mostrar que a solicitante recebe exclusivamente BTC via Lightning. Exibir separadamente taxas e spread: se forem US$ 10, ela recebe líquido US$ 1.890, enquanto a pool continua em US$ 1.900.
-
-### 2:00–2:40 — aporte real
-
-Mostrar pool em 92%, gerar invoice pequena, pagar com carteira e ver confirmação idempotente/progresso. Dizer explicitamente que o valor é real e limitado.
-
-### 2:40–3:30 — vencimento e resultado
-
-Avançar o cenário controlado ao dia 30. Pagador paga por link Lightning. Mostrar principal, resultado da pool e divisão: 30% plataforma, 70% aportadoras. Mostrar também a quantidade final de sats afetada pela cotação.
-
-### 3:30–4:15 — confiança portátil
-
-Mostrar reputação por dimensões e atestado Nostr assinado sem valor, documento ou identidade do pagador.
-
-### 4:15–4:45 — resiliência
-
-Alternar rapidamente para o cenário de inadimplência: reserva limitada cobre aportadoras e abre recuperação. Encerrar com o impacto para mulheres que recebem do exterior.
-
-## Momentos de impacto
-
-- Limite que cresce de forma explicável.
-- Confirmação do pagador sem expor contrato.
-- Aporte real Lightning.
-- Comparação honesta das modalidades.
-- Reputação portátil sem PII.
-
-## Plano alternativo
-
-- Lightning indisponível: reproduzir pagamento previamente capturado e usar evento fixture marcado “demonstração”.
-- Relay indisponível: mostrar evento assinado localmente e fila pendente.
-- Cotação indisponível: usar cotação versionada pré-carregada e identificada.
-- USDt Liquid/Breez indisponível: mostrar simulador e resultado do spike, sem alegar transferência real.
+P3.4 só está concluída quando o percurso de 1 a 13 tiver sido ensaiado com evidências.
+Revisão de código, testes locais e navegação pública não substituem transações assinadas.
