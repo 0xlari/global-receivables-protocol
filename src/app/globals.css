@@ -137,13 +137,6 @@ svg {
   color: #f5f7f3;
 }
 
-.brand--grp .brand__grp-symbol {
-  display: block;
-  width: 7.8rem;
-  height: 2.5rem;
-  overflow: visible;
-  color: #ffffff;
-}
 
 .site-header--grp {
   border-bottom-color: rgba(57,255,136,.075);
@@ -2153,5 +2146,19 @@ svg {
   .site-header--grp .mobile-nav nav button:hover {
     background: rgba(57,255,136,.08);
     color: #39ff88;
+  }
+}
+
+.brand--grp .brand__grp-wordmark {
+  display: block;
+  width: 7.4rem;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(57,255,136,.08));
+}
+
+@media (max-width: 760px) {
+  .site-header--grp .brand__grp-wordmark {
+    width: 5.9rem;
   }
 }
