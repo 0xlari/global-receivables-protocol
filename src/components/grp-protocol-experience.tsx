@@ -33,7 +33,7 @@ const stages = [
   {
     eyebrow: "05 · SETTLE",
     title: "Settle through one rail.",
-    body: "At maturity, GRP attempts USDC settlement. If funds are unavailable, the obligation remains visible and can still be paid later.",
+    body: "The payer signs a fresh USDC payment transaction. If payment is not completed, the obligation remains visible and can still be paid later.",
     metric: "Settlement · Due / Paid / Overdue",
   },
   {
