@@ -7,6 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ButtonLink } from "@/components/button-link";
+import { calculateErhTargetUsd } from "@/config/erh-market-rules";
 
 const steps = [
   {
@@ -82,7 +83,7 @@ export default function ElasRecebemHojePage() {
               <div className="receipt-card__rows">
                 <span>
                   <small>Antecipação</small>
-                  1.900 USDC
+                  {Number(calculateErhTargetUsd("200000")).toLocaleString("pt-BR")} USDC
                 </span>
                 <span>
                   <small>Vencimento</small>
@@ -166,7 +167,7 @@ export default function ElasRecebemHojePage() {
           <p>
             Cadastre um recebível e acompanhe a confirmação, validação e financiamento.
           </p>
-          <ButtonLink href="/entrar?next=/recebivel">
+          <ButtonLink href="/elas-recebem-hoje/entrar?next=/elas-recebem-hoje/recebivel">
             Entrar na plataforma <ArrowRight aria-hidden="true" size={18} />
           </ButtonLink>
         </div>
