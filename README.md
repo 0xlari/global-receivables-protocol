@@ -3,6 +3,8 @@
 **Global Receivables Protocol (GRP)** is open infrastructure for creating, validating, financing, settling and building portable reputation around real-world receivables on Solana.
 
 Live demo: **https://global-receivables-protocol.vercel.app/**  
+[Whitepaper](docs/WHITEPAPER.md) · [Demo runbook](docs/11-roteiro-da-demo.md)
+
 Network: **Solana Devnet**  
 Program ID: `CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY`
 
@@ -64,19 +66,19 @@ and may later become `PAUSED`, `SUSPENDED` or `RETIRED` without deleting histori
 
 **Elas Recebem Hoje (ERH)** is the first active Market built on GRP.
 
-Current Devnet MarketConfig:
+ERH rules configured in the application and enforced by the program when a pool is created (verify the deployed MarketConfig before the demo):
 
 | Rule | Value |
 |---|---:|
 | Advance | 80% |
-| Minimum partial funding | 50% |
+| Minimum partial funding | 50% of the pool target |
 | Investor return | 3.5% |
 | ERH Market fee | 1.0% |
 | GRP protocol fee | 0.50% |
 | Settlement asset | USDC |
 | Status | ACTIVE |
 
-Market treasury and GRP treasury are separate.
+Market treasury and GRP treasury are separate. The investor return is calculated on funded principal; both fees are calculated on the receivable face value. These are per-operation rates, not annual yields. A full advance requires full funding. After the funding deadline, the requester may explicitly accept partial funding of at least 50% of the target.
 
 ## End-to-end flow
 
@@ -93,7 +95,7 @@ Market treasury and GRP treasury are separate.
 11. The residual returns to the requester.
 12. Receivable Passport updates the financial history.
 
-The payer does **not** grant an open-ended token delegate. Settlement requires a fresh payer signature.
+The payer does **not** grant an open-ended token delegate. Settlement requires a fresh payer signature. In the current source, `manual_repayment` accepts the full remaining amount, including voluntary early payment; partial repayment is rejected. `settle_receivable` only marks payment due and transfers no tokens. Confirm the deployed program version during the signed-wallet rehearsal.
 
 ## Example economics
 
@@ -130,7 +132,7 @@ It tracks:
 
 The Market may change; the Passport remains portable.
 
-Private evidence, PII, KYC/KYB and sensitive documents remain off-chain.
+Private evidence and PII remain off-chain. The current form records evidence metadata and a salted hash commitment; it does not establish a complete document-storage, KYC/KYB or compliance service. Passport facts describe recorded protocol activity, not a verified identity or a universal credit score.
 
 ## Default model
 
@@ -141,36 +143,15 @@ Current MVP rules:
 - repayment after default remains possible;
 - cured defaults remain visible in the Passport.
 
+These thresholds are elapsed time from `due_at` (24 hours and five days). State changes require execution of `process_delinquency`; time alone does not execute a transaction. Passport late/default classification depends on recorded delinquency flags, so it should not be described as independently guaranteed wall-clock classification.
+
 A future **Stability Reserve** is part of the economic roadmap. It is not an automatic guarantee or insurance product. Any support would be partial, eligibility-based and subject to risk policy.
 
 ## Architecture
 
-```text
-User / Payer / Investor
-        │
-        ▼
-Next.js application
-        │
-        ├──────────────► Neon / PostgreSQL
-        │                private operational data
-        │                sessions
-        │                evidence references
-        │                Market operations
-        │
-        ▼
-Solana Program (Anchor)
-        │
-        ├─ ProtocolConfig
-        ├─ MarketConfig
-        ├─ Receivable
-        ├─ ReceivableMarket
-        ├─ PayerAuthorization (payer commitment)
-        ├─ Validation
-        ├─ Pool
-        ├─ Contribution
-        ├─ SettlementDistribution
-        └─ ReceivablePassport
-```
+The Next.js application connects wallet users to the Anchor program and to Neon/PostgreSQL. Solana holds public financial state; the database holds private operational records and application reconciliation data.
+
+Principal program accounts: `ProtocolConfig`, `MarketConfig`, `Receivable`, `ReceivableMarket`, `PayerAuthorization`, `Validation`, `Pool`, `Contribution`, `SettlementDistribution` and `ReceivablePassport`.
 
 ### On-chain
 
@@ -208,7 +189,7 @@ Solana Program (Anchor)
 - Vercel
 - Vitest
 
-Legacy Bitcoin / Lightning / Nostr code remains in the repository only as preserved history from the original Hack4Freedom project and is not part of the active GRP product flow.
+Legacy Bitcoin / Lightning / Nostr modules, dependencies and routes remain during migration. The intended demo follows the GRP/ERH Solana routes. Their presence does not imply that all legacy execution paths have been removed or independently audited.
 
 ## Development
 
@@ -244,7 +225,7 @@ Build the Solana program:
 anchor build
 ```
 
-Database setup for GRP:
+Database setup for an isolated development database (review schema changes before using an existing database; `db:setup-grp` runs `drizzle-kit push`):
 
 ```bash
 pnpm db:setup-grp
@@ -252,47 +233,55 @@ pnpm db:setup-grp
 
 ## Environment variables
 
-```text
-DATABASE_URL
-NEXT_PUBLIC_GRP_PROGRAM_ID
-NEXT_PUBLIC_SOLANA_RPC_URL
-NEXT_PUBLIC_GRP_ORIGINATOR_WALLET
-NEXT_PUBLIC_GRP_USDC_MINT
-NEXT_PUBLIC_ERH_MARKET_TREASURY
-```
+Set local values in `.env.local` and deployment values in Vercel **Production**. Use an isolated database and Devnet token mint for development. `NEXT_PUBLIC_*` values are public browser configuration, never secrets.
 
-Never commit secrets, private keys, seed phrases, mnemonics, PII or production credentials.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Private PostgreSQL connection string; server only |
+| `NEXT_PUBLIC_GRP_PROGRAM_ID` | Deployed GRP program address |
+| `NEXT_PUBLIC_SOLANA_RPC_URL` | Solana Devnet RPC endpoint |
+| `NEXT_PUBLIC_GRP_ORIGINATOR_WALLET` | Market validation/operator wallet |
+| `NEXT_PUBLIC_GRP_USDC_MINT` | Devnet SPL settlement mint; verify address and decimals |
+| `NEXT_PUBLIC_ERH_MARKET_TREASURY` | ERH treasury used by setup; current code has a fallback address |
+| `NEXT_PUBLIC_SITE_URL` | Canonical public site URL; set to the demo domain on Vercel |
 
-## Current status
+Public configuration changes require a new build. Never commit secrets, private keys, seed phrases, mnemonics, PII or production credentials.
 
-Implemented and demonstrated on Devnet:
+## Demo entry points
 
-- receivable creation;
-- payer commitment;
-- Market validation;
-- MarketConfig on-chain;
-- pool creation;
-- investor funding;
-- USDC disbursement;
-- payer settlement;
-- investor distribution;
-- separate Market and Protocol fees;
-- requester residual;
-- D+1 overdue;
-- D+5 default;
-- cure after default;
-- Receivable Passport;
-- Market lifecycle;
-- Vercel deployment.
+- `/`: protocol landing page.
+- `/markets`: market directory.
+- `/elas-recebem-hoje`: first Market application.
+- `/elas-recebem-hoje/entrar`: Solana wallet login.
+- `/elas-recebem-hoje/recebivel`: requester origination.
+- `/elas-recebem-hoje/painel`: requester dashboard.
+- `/elas-recebem-hoje/oportunidades`: investor opportunities.
+- `/elas-recebem-hoje/passaporte`: requester performance history.
+- `/administracao/grp`: protocol setup and authorized validation.
+
+Prepare separate requester, payer, investor and operator wallets, SOL for Devnet fees and the configured Devnet settlement tokens. Use fictitious evidence. Follow the [demo runbook](docs/11-roteiro-da-demo.md); a signature or token balance alone does not prove the complete flow.
+
+## Implementation and verification status
+
+The current source contains creation, payer commitment, validation, MarketConfig enforcement, pool funding/disbursement, payer-signed repayment, investor claims, fee/residual distribution, delinquency/cure and Passport updates. Source implementation is distinct from a verified production rehearsal.
+
+Verified on 11 October 2026 during P3.5:
+
+- Vercel production deployment `READY`, commit `0a45c30` on `migration/grp-phase-1`;
+- 11 main page routes and the PNG logo returned HTTP 200;
+- navigation from GRP to Markets, ERH and Solana login;
+- five private GET APIs returned HTTP 401 without a session.
+
+The complete authenticated database and signed-wallet financial flow remains pending in P3.4. The prepared P3.4 UI/runbook corrections are in draft PR #1 and were not part of that production smoke test. Production also lacked `NEXT_PUBLIC_SITE_URL` at the time of inspection.
 
 Still in hardening / roadmap:
 
+- signed-wallet rehearsal against the deployed program, with transaction evidence;
 - full automated Anchor integration coverage for the latest MarketConfig flow;
-- Stability Reserve implementation;
-- Rail Registry;
-- production compliance and jurisdiction-specific controls;
-- independent security review;
-- mainnet readiness.
+- complete private document storage and operational compliance controls;
+- reliable delinquency processing and time-based Passport classification;
+- Stability Reserve, Rail Registry and expanded governance;
+- independent security review and mainnet readiness.
 
 ## Repository notes
 
