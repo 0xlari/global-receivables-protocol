@@ -1,6 +1,8 @@
 # Global Receivables Protocol (GRP)
 
-## Whitepaper — Hackathon Draft
+## Whitepaper — Hackathon MVP
+
+Documentation review: 11 October 2026. This describes the current source and intended Devnet flow; deployment verification is stated separately below.
 
 ### Abstract
 
@@ -14,7 +16,7 @@ The first active Market is **Elas Recebem Hoje**, focused on professionals in Br
 
 ## 1. Problem
 
-Millions of professionals and small businesses operate across borders but wait weeks or months to receive invoices, salaries, commissions and service payments.
+Professionals and small businesses operating across borders may wait weeks or months to receive invoices, salaries, commissions and service payments.
 
 Traditional receivables financing is often:
 
@@ -83,12 +85,12 @@ and can later be `PAUSED`, `SUSPENDED` or `RETIRED`.
 
 ### First Market: Elas Recebem Hoje
 
-Current MarketConfig on Solana Devnet:
+ERH parameters configured in the application and checked by the program at pool creation (deployed account verification remains part of the demo rehearsal):
 
 | Parameter | Value |
 |---|---:|
 | Advance | 80% |
-| Minimum partial funding | 50% |
+| Minimum partial funding | 50% of pool target |
 | Investor return | 3.5% |
 | Market fee | 1.0% |
 | GRP fee | 0.50% |
@@ -103,7 +105,7 @@ Current MarketConfig on Solana Devnet:
 
 A requester creates a receivable with an amount, due date, payment origin and evidence commitment.
 
-Sensitive supporting documents remain off-chain.
+Sensitive supporting documents must remain off-chain. The current form records evidence metadata and a salted hash commitment; complete private file storage, access control and KYC/KYB workflows are not established by this commitment.
 
 ### 4.2 Payer commitment
 
@@ -125,13 +127,13 @@ The Solana program verifies that the pool economics match the MarketConfig. A ma
 
 Investors fund the pool in USDC.
 
-When the configured funding requirements are met, the funded amount is transferred to the requester.
+A fully funded pool can be disbursed to the requester. Partial funding requires an explicit requester acceptance after the funding deadline and at least 50% of the pool target. Disbursement is a separate authorized transaction; it is not triggered automatically by time or funding alone.
 
 ### 4.6 Settlement
 
 The payer later signs a new transaction and settles the receivable in USDC.
 
-The payment is routed through settlement state controlled by the GRP program.
+The payment is routed through settlement state controlled by the GRP program. In the current source, `manual_repayment` requires the entire remaining amount and permits voluntary early settlement. Partial repayment is rejected. `settle_receivable` only marks payment due after maturity and moves no funds. The deployed program version must be checked during rehearsal.
 
 ### 4.7 Distribution
 
@@ -158,6 +160,8 @@ ERH Market fee (1.0%)          US$    10
 GRP protocol fee (0.50%)       US$     5
 Requester residual             US$   157
 ```
+
+This example assumes the full US$800 target was funded and the US$1,000 face value repaid. Investor return is 3.5% of funded principal; Market and GRP fees are 1% and 0.50% of face value. Rates are per operation, not annualized, and repayment is not guaranteed. Amounts use integer token units with program-defined rounding.
 
 The investor therefore receives US$828 after settlement.
 
@@ -196,7 +200,7 @@ Current MVP delinquency rules:
 - settlement after default marks the receivable as paid after default and the pool as cured;
 - the original default remains visible in the Passport.
 
-This preserves both negative events and subsequent recovery.
+The thresholds are 24 hours and five days after `due_at`. A `process_delinquency` transaction must record the transition; a clock does not execute transactions. The current Passport settlement classification uses recorded failure/default flags. If delinquency processing is skipped, a late repayment can lack those flags; accurate time-based classification and reliable processing remain hardening work. This limits claims about completeness of the performance history.
 
 ---
 
@@ -208,21 +212,7 @@ The reserve is not implemented as an automatic bailout, insurance product or unc
 
 The intended model is:
 
-```text
-default
-  ↓
-collection / recovery
-  ↓
-Market-specific protections
-  ↓
-operator loss-sharing where applicable
-  ↓
-request to Stability Reserve
-  ↓
-eligibility review
-  ↓
-limited partial support, if approved
-```
+The proposed sequence is collection/recovery, applicable Market protections and operator loss-sharing, followed by a reserve request, eligibility review and limited partial support if approved. These are design intentions, not an implemented claims process.
 
 A previously approved economic direction allocates part of protocol revenue conceptually to:
 
@@ -268,7 +258,7 @@ Settlement fee calculations also read from MarketConfig.
 
 ## 10. Off-chain architecture
 
-Neon/PostgreSQL stores operational and private data such as:
+Neon/PostgreSQL provides operational persistence for sessions, receivable metadata, payer details, evidence references and application reconciliation. The intended off-chain boundary also includes:
 
 - session/profile data;
 - documents and evidence references;
@@ -278,7 +268,7 @@ Neon/PostgreSQL stores operational and private data such as:
 - audit events;
 - application reconciliation data.
 
-The database does not replace Solana as the canonical financial state.
+The database does not replace Solana as the canonical financial state. This data boundary is not proof of a complete document repository, identity verification service or audited compliance workflow.
 
 ---
 
@@ -353,7 +343,7 @@ The current system is experimental and not approved for production use or real-m
 
 ## 14. What is implemented
 
-Current Devnet MVP includes:
+The current source implements the following primitives; this list is not a claim that each has passed a complete signed-wallet rehearsal against the currently deployed program:
 
 - Solana wallet authentication;
 - receivable creation;
@@ -374,17 +364,24 @@ Current Devnet MVP includes:
 
 ---
 
+### Verification snapshot — 11 October 2026
+
+The P3.5 inspection confirmed Vercel production `READY` at commit `0a45c30`, HTTP 200 for 11 main pages and the logo, navigation through GRP → Markets → ERH → Solana login, and expected HTTP 401 responses from five unauthenticated private GET endpoints.
+
+These checks did not verify authenticated database operations, token transfers, deployed MarketConfig values, investor claims or Passport updates. The four-role signed-wallet rehearsal remains pending in P3.4. Prepared demo corrections are in draft PR #1 and were not in that production snapshot.
+
 ## 15. Roadmap
 
 Next hardening areas:
 
-1. complete latest Anchor end-to-end integration coverage;
+1. complete the deployed signed-wallet rehearsal and latest Anchor integration coverage;
 2. Rail Registry;
 3. Stability Reserve vault and governance policy;
 4. independent security review;
 5. expanded Market governance;
 6. jurisdiction-specific operational and compliance frameworks;
-7. mainnet readiness criteria.
+7. mainnet readiness criteria;
+8. complete private evidence handling and reliable delinquency/Passport time classification.
 
 ---
 
