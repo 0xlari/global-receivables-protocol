@@ -34,7 +34,7 @@
   content: "";
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3,5,4,1) 0%, rgba(3,5,4,.97) 42%, rgba(3,5,4,.3) 74%, rgba(3,5,4,.82) 100%);
+    linear-gradient(90deg, rgba(3,5,4,1) 0%, rgba(3,5,4,.98) 48%, rgba(3,5,4,.88) 100%);
 }
 
 .openingNoise {
@@ -205,9 +205,7 @@
     min-height: calc(100svh - 72px);
     align-items: flex-start;
     padding: 4.2rem 1.2rem 4rem;
-    background:
-      radial-gradient(circle at 70% 68%, rgba(57,255,136,.09), transparent 16rem),
-      #030504;
+    background: #030504;
   }
 
   .opening::before {
