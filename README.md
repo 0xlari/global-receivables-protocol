@@ -317,7 +317,17 @@ See the [documentation index](https://github.com/0xlari/global-receivables-proto
 
 ## Team
 
-Larissa Barros Fernandes, Lídia and Zâmbia.
+GRP is built by **Larissa Barros Fernandes, Lídia and Zâmbia**, combining experience in crypto communities, cross-border payments, communications and hackathon product development.
+
+- **Larissa Barros Fernandes** brings experience in crypto communities, business development and cross-border payment operations. She founded Agenda Crypto and has worked across growth, partnerships and community initiatives in the crypto ecosystem.
+- **Lídia** brings hands-on experience building projects under hackathon deadlines. This is her sixth hackathon, and she has won awards at three previous hackathons.
+- **Zâmbia** is a journalist and public relations professional working in the crypto industry, with experience supporting communications for multiple companies in the sector.
+
+## Origins and commitment
+
+The project began as **Elas Recebem Hoje** at **Hack4Freedom**, a Bitcoin hackathon where it placed **second**. That earlier project established the business insight: professionals should be able to access liquidity against confirmed future payments.
+
+GRP develops that insight into shared receivables infrastructure on Solana, with local markets and portable performance history. We intend to continue developing the project beyond this hackathon, validate a supervised pilot and strengthen the product's security and operating controls.
 
 ## Prior work disclosure
 
