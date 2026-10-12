@@ -2,7 +2,9 @@
 
 **Global Receivables Protocol (GRP)** is open infrastructure for creating, validating, financing, settling and building portable reputation around real-world receivables on Solana.
 
-Live demo: **https://global-receivables-protocol.vercel.app/**  
+Live demo: **[Open GRP on Vercel](https://global-receivables-protocol.vercel.app/)**
+Repository: **[Global Receivables Protocol on GitHub](https://github.com/0xlari/global-receivables-protocol)**
+Active Solana source: **[migration/grp-phase-1](https://github.com/0xlari/global-receivables-protocol/tree/migration/grp-phase-1)**  
 Network: **Solana Devnet**  
 Program ID: `CDqVimqKDSBmPE84obn96Vh8bb4kMzQgGkC2AiTcU7mY`
 
@@ -298,11 +300,22 @@ Still in hardening / roadmap:
 
 The project evolved from **Elas Recebem Hoje**, originally built during Hack4Freedom around Bitcoin, Lightning and Nostr. GRP preserves the core business insight while replacing the chain-specific infrastructure with a Solana-first protocol architecture.
 
-See also:
+See the [documentation index](docs/README.md) for current English documentation and the historical documentation boundary.
 
-- `docs/GRP_MIGRATION.md`
-- `docs/12-decisoes.md`
-- `docs/WHITEPAPER.md`
+- [Whitepaper](docs/WHITEPAPER.md)
+- [Solana architecture](docs/20-grp-solana-architecture.md)
+- [Markets and operator economics](docs/21-grp-markets-operators-economics.md)
+- [Demo walkthrough](docs/11-roteiro-da-demo.md)
+- [Anchor program](programs/global_receivables_protocol/README.md)
+- [Migration background](docs/GRP_MIGRATION.md)
+
+## Team
+
+Larissa Barros Fernandes, Lídia and Zâmbia.
+
+## Prior work disclosure
+
+Elas Recebem Hoje originated in an earlier Bitcoin hackathon. The Solana implementation builds on that business insight. Prior work and competition-period development must be distinguished in the submission; the entire repository history must not be presented as new hackathon work.
 
 ## Safety
 
